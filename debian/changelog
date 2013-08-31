@@ -6,6 +6,8 @@ powertop (2.4-1) UNRELEASED; urgency=low
   * debian/watch: upstream changed to `tar.gz` from `tar.bz2`, so reports on
     newer versions were failing to be accurate. (Closes: #695891)
   * Acknowledging NMU's.
+  * debian/rules: Simple dh format.
+  * debian/patches: changes applied upstream. No need anymore.
 
  -- Jose Luis Rivas <ghostbar@debian.org>  Fri, 30 Aug 2013 21:17:35 -0430
 
