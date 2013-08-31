@@ -31,6 +31,8 @@
 class i915gpu: public device {
 	int index;
 	int rindex;
+	vector<device *>child_devices;
+
 public:
 
 	i915gpu();
@@ -42,10 +44,12 @@ public:
 
 	virtual const char * class_name(void) { return "GPU";};
 
-	virtual const char * device_name(void) { return "GPU";};
+	virtual const char * device_name(void);
 	virtual double power_usage(struct result_bundle *result, struct parameter_bundle *bundle);
 	virtual bool show_in_list(void) {return false;};
 	virtual const char * util_units(void) { return " ops/s"; };
+
+	virtual void add_child(device *dev_ptr) { child_devices.push_back(dev_ptr);}
 };
 
 extern void create_i915_gpu(void);

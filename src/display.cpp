@@ -43,7 +43,6 @@ map<string, string> tab_translations;
 
 map<string, string> bottom_lines;
 
-#ifndef DISABLE_NCURSES
 void create_tab(const string &name, const string &translation, class tab_window *w, string bottom_line)
 {
 	if (!w)
@@ -96,7 +95,7 @@ static int current_tab;
 
 void show_tab(unsigned int tab)
 {
-	WINDOW *win;
+	class tab_window *win;
 	unsigned int i;
 	int tab_pos = 17;
 	const char *c;
@@ -128,7 +127,7 @@ void show_tab(unsigned int tab)
 	if (c && strlen(c) > 0)
 		mvwprintw(bottom_line, 0,0, c);
 	else
-		mvwprintw(bottom_line, 0,0, _(" <ESC> Exit | "));
+		mvwprintw(bottom_line, 0,0,"<ESC> %s | ",_("Exit"));
 
 
 	current_tab = tab;
@@ -146,11 +145,11 @@ void show_tab(unsigned int tab)
 	wrefresh(tab_bar);
 	wrefresh(bottom_line);
 
-	win = get_ncurses_win(tab_names[tab]);
+	win = tab_windows[tab_names[tab]];
 	if (!win)
 		return;
 
-	prefresh(win, 0, 0, 1, 0, LINES - 3, COLS - 1);
+	prefresh(win->win, win->ypad_pos, win->xpad_pos, 1, 0, LINES - 3, COLS - 1);
 }
 
 WINDOW *get_ncurses_win(const char *name)
@@ -186,6 +185,26 @@ WINDOW *get_ncurses_win(const string &name)
 	return get_ncurses_win(name.c_str());
 }
 
+void show_prev_tab(void)
+{
+       class tab_window *w;
+
+       if (!display)
+               return;
+       w = tab_windows[tab_names[current_tab]];
+       if (w)
+               w->hide();
+
+       current_tab --;
+       if (current_tab < 0)
+               current_tab = tab_names.size() - 1;
+
+       w = tab_windows[tab_names[current_tab]];
+       if (w)
+               w->expose();
+
+       show_tab(current_tab);
+}
 
 void show_next_tab(void)
 {
@@ -209,27 +228,6 @@ void show_next_tab(void)
 	show_tab(current_tab);
 }
 
-void show_prev_tab(void)
-{
-	class tab_window *w;
-
-	if (!display)
-		return;
-	w = tab_windows[tab_names[current_tab]];
-	if (w)
-		w->hide();
-
-	current_tab --;
-	if (current_tab < 0)
-		current_tab = tab_names.size() - 1;
-
-	w = tab_windows[tab_names[current_tab]];
-	if (w)
-		w->expose();
-
-	show_tab(current_tab);
-}
-
 void show_cur_tab(void)
 {
 	if (!display)
@@ -242,8 +240,20 @@ void cursor_down(void)
 	class tab_window *w;
 
 	w = tab_windows[tab_names[current_tab]];
-	if (w)
-		w->cursor_down();
+	if (w) {
+		if (w->ypad_pos < 1000) {
+			if (tab_names[current_tab] == "Tunables") {
+		                if ((w->cursor_pos + 7) >= LINES) { 
+					prefresh(w->win, ++w->ypad_pos, w->xpad_pos, 
+						1, 0, LINES - 3, COLS - 1);
+				}			
+					w->cursor_down(); 
+			} else {
+				prefresh(w->win, ++w->ypad_pos, w->xpad_pos, 
+					1, 0, LINES - 3, COLS - 1);
+			}
+		}
+	}
 
 	show_cur_tab();
 }
@@ -254,10 +264,48 @@ void cursor_up(void)
 
 	w = tab_windows[tab_names[current_tab]];
 
-	if (w)
-		w->cursor_up();
-
+	if (w) {
+		w->cursor_up(); 
+		if(w->ypad_pos > 0) {
+			if (tab_names[current_tab] == "Tunables") {
+				prefresh(w->win, --w->ypad_pos, w->xpad_pos, 
+					1, 0, LINES - 3, COLS - 1);
+	                } else {
+				prefresh(w->win, --w->ypad_pos, w->xpad_pos, 
+					1, 0, LINES - 3, COLS - 1);
+			}
+		}
+	}
+	
 	show_cur_tab();
+}
+
+void cursor_left(void)
+{
+        class tab_window *w;
+
+	w = tab_windows[tab_names[current_tab]];
+	
+	if (w) {			
+		if (w->xpad_pos > 0) {
+			prefresh(w->win, w->ypad_pos,--w->xpad_pos, 
+				1, 0, LINES - 3, COLS - 1);
+		}
+	}
+}
+
+void cursor_right(void) 
+{
+        class tab_window *w;
+
+	w = tab_windows[tab_names[current_tab]];
+
+	if (w) {
+		if (w->xpad_pos < 1000) {
+			prefresh(w->win, w->ypad_pos, ++w->xpad_pos, 
+				1, 0, LINES - 3, COLS - 1);
+		}
+	}
 }
 
 void cursor_enter(void)
@@ -276,10 +324,12 @@ void cursor_enter(void)
 void window_refresh()
 {
 	class tab_window *w;
-	
+
 	w = tab_windows[tab_names[current_tab]];
 
 	if (w) {
+		w->ypad_pos = 0;
+		w->xpad_pos = 0;
 		w->window_refresh();
 		w->repaint();
 	}
@@ -293,52 +343,3 @@ int ncurses_initialized(void)
 		return 1;
 	return 0;
 }
-
-#else /* DISABLE_NCURSES - stub implementations*/
-
-void create_tab(const string &name, const string &translation, class tab_window *w, string bottom_line)
-{
-}
-
-
-void init_display(void)
-{
-}
-
-void reset_display(void)
-{
-}
-
-void show_tab(unsigned int tab)
-{
-}
-
-void show_next_tab(void)
-{
-}
-
-void show_prev_tab(void)
-{
-}
-
-void show_cur_tab(void)
-{
-}
-
-void cursor_down(void)
-{
-}
-
-void cursor_up(void)
-{
-}
-void cursor_enter(void)
-{
-}
-
-int ncurses_initialized(void)
-{
-	return 0;
-}
-
-#endif

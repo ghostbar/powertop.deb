@@ -1,11 +1,7 @@
-﻿
-
-
-Building & Installing PowerTOP
+﻿Building & Installing PowerTOP
 ------------------------------
 
 To build and install PowerTOP type the following commands, 
-	./autogen.sh
 	./configure 
 	./make
 	./make install
@@ -24,11 +20,10 @@ development environment.
 
 in addition to that, PowerTOP requires the following components:
 
-pciutils-devel
-ncurses-devel
-zlib-devel
-libnl-devel
-
+pciutils-devel (is only required if you have PCI) 
+ncurses-devel  (required) 
+libnl-devel    (required)
+kernel version => 2.6.38
 
 Kernel Parameters:
 ------------------
@@ -48,6 +43,7 @@ CONFIG_PERF_COUNTERS
 CONFIG_TRACEPOINTS
 CONFIG_TRACING
 CONFIG_EVENT_POWER_TRACING_DEPRECATED
+CONFIG_X86_MSR
 ACPI_PROCFS_POWER
 
 The patches in the patches/ sub-directory are required for PowerTOP to function
@@ -74,7 +70,7 @@ Validation Service and W3C CSS Validation Service:
  * http://validator.w3.org/#validate_by_upload
  * http://jigsaw.w3.org/css-validator/#validate_by_upload
 
-For a CVS formatted report, simply execute PowerTOP with the following, 
+For a CSV formatted report, simply execute PowerTOP with the following, 
 
 Powertop --csv 
 

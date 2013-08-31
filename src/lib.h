@@ -25,20 +25,20 @@
 #ifndef INCLUDE_GUARD_LIB_H
 #define INCLUDE_GUARD_LIB_H
 
-#ifndef DISABLE_I18N
 #include <libintl.h>
-#endif
 #include <stdint.h>
 
-#ifndef DISABLE_I18N
-#define _(STRING)    gettext(STRING)
-#else
-#define _(STRING)    (STRING)
+/* Include only for Automake builds */
+#ifdef HAVE_CONFIG_H
+#include "config.h"
 #endif
 
-#define POWERTOP_VERSION "v2.0"
-#define POWERTOP_SHORT_VERSION "v2.0"
+#define _(STRING)    gettext(STRING)
 
+#define POWERTOP_VERSION "v"PACKAGE_VERSION
+#define POWERTOP_SHORT_VERSION PACKAGE_VERSION
+
+extern int is_turbo(uint64_t freq, uint64_t max, uint64_t maxmo);
 
 extern int get_max_cpu(void);
 extern void set_max_cpu(int cpu);
@@ -48,12 +48,6 @@ extern char *hz_to_human(unsigned long hz, char *buffer, int digits = 2);
 
 
 extern const char *kernel_function(uint64_t address);
-
-class stringless
-{
-public:
-	bool operator()(const char * const & lhs, const char * const & rhs) const ;
-};
 
 
 
@@ -80,5 +74,6 @@ typedef void (*callback)(const char*);
 extern void process_directory(const char *d_name, callback fn);
 extern int utf_ok;
 extern int get_user_input(char *buf, unsigned sz);
-
+extern int read_msr(int cpu, uint64_t offset, uint64_t *value);
+extern int write_msr(int cpu, uint64_t offset, uint64_t value);
 #endif

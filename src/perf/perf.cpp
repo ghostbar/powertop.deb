@@ -27,7 +27,6 @@
 #include <fstream>
 
 #include <unistd.h>
-#include <sys/syscall.h>   /* For SYS_xxx definitions */
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -40,15 +39,6 @@
 #include <fcntl.h>
 
 #include "perf_event.h"
-
-/* __NR_perf_event_open in ia64 and alpha is defined elsewhere */
-#ifdef __ia64__
-#include <asm-generic/unistd.h>
-#endif
-#ifdef __alpha__
-#include <asm-generic/unistd.h>
-#endif
-
 #include "perf.h"
 #include "../lib.h"
 #include "../display.h"
@@ -120,7 +110,7 @@ void perf_event::create_perf_event(char *eventname, int _cpu)
 		reset_display();
 		fprintf(stderr, _("PowerTOP %s needs the kernel to support the 'perf' subsystem\n"), POWERTOP_VERSION);
 		fprintf(stderr, _("as well as support for trace points in the kernel:\n"));
-		fprintf(stderr, _("CONFIG_PERF_EVENTS=y\nCONFIG_PERF_COUNTERS=y\nCONFIG_TRACEPOINTS=y\nCONFIG_TRACING=y\n"));
+		fprintf(stderr, "CONFIG_PERF_EVENTS=y\nCONFIG_PERF_COUNTERS=y\nCONFIG_TRACEPOINTS=y\nCONFIG_TRACING=y\n");
 		exit(EXIT_FAILURE);
 	}
 	if (read(perf_fd, &read_data, sizeof(read_data)) == -1) {
@@ -138,7 +128,7 @@ void perf_event::create_perf_event(char *eventname, int _cpu)
 		return;
 	}
 
-	ret = ioctl(perf_fd, PERF_EVENT_IOC_ENABLE);
+	ret = ioctl(perf_fd, PERF_EVENT_IOC_ENABLE, 0);
 
 	if (ret < 0) {
 		fprintf(stderr, "failed to enable perf \n");
@@ -155,6 +145,11 @@ void perf_event::set_event_name(const char *event_name)
 	if (name)
 		free(name);
 	name = strdup(event_name);
+	if (!name) {
+		fprintf(stderr, "failed to allocate event name\n");
+		return;
+	}
+
 	char *c;
 
 	c = strchr(name, ':');
@@ -220,7 +215,7 @@ void perf_event::start(void)
 void perf_event::stop(void)
 {
 	int ret;
-	ret = ioctl(perf_fd, PERF_EVENT_IOC_DISABLE);
+	ret = ioctl(perf_fd, PERF_EVENT_IOC_DISABLE, 0);
 	if (ret)
 		cout << "stop failing\n";
 }
@@ -228,12 +223,11 @@ void perf_event::stop(void)
 void perf_event::process(void *cookie)
 {
 	struct perf_event_header *header;
-	int i = 0;
 
 	if (perf_fd < 0)
 		return;
 
-	while (pc->data_tail != pc->data_head && i++ < 5000) {
+	while (pc->data_tail != pc->data_head ) {
 		while (pc->data_tail >= (unsigned int)bufsize * getpagesize())
 			pc->data_tail -= bufsize * getpagesize();
 

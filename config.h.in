@@ -80,6 +80,9 @@
 /* Define to 1 if you have the <ncurses.h> header file. */
 #undef HAVE_NCURSES_H
 
+/* Define if pci is not supported */
+#undef HAVE_NO_PCI
+
 /* Define to 1 if you have the `pow' function. */
 #undef HAVE_POW
 
