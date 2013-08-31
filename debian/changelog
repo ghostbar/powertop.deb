@@ -3,6 +3,11 @@ powertop (2.4-1) UNRELEASED; urgency=low
   * New upstream release (Closes: #685607)
   * debian/control:
     + Jose Luis Rivas's email to `ghostbar@debian.org`.
+    + Remove build-dependency on `cdbs`. No need anymore.
+    + Add dependency on `automake` so `config.{guess,sub}` are auto-updated on
+    build.
+    + Standards-Version to 3.9.4.
+    + Swap on fields maintainer and uploaders.
   * debian/watch: upstream changed to `tar.gz` from `tar.bz2`, so reports on
     newer versions were failing to be accurate. (Closes: #695891)
   * Acknowledging NMU's.
