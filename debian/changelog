@@ -1,4 +1,4 @@
-powertop (2.4-1) UNRELEASED; urgency=low
+powertop (2.4-1) unstable; urgency=low
 
   * New upstream release (Closes: #685607, #695893, #659517, #686699, #705993)
   * debian/control:
@@ -16,7 +16,7 @@ powertop (2.4-1) UNRELEASED; urgency=low
   * debian/patches: changes applied upstream. No need anymore.
   * debian/copyright: update to copyright-format/1.0
 
- -- Jose Luis Rivas <ghostbar@debian.org>  Fri, 30 Aug 2013 21:17:35 -0430
+ -- Jose Luis Rivas <ghostbar@debian.org>  Fri, 30 Aug 2013 22:47:26 -0430
 
 powertop (2.0-0.3) unstable; urgency=high
 
