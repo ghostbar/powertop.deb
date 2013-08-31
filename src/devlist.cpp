@@ -37,12 +37,14 @@
 #include <sys/types.h>
 #include <dirent.h>
 #include <string.h>
+#include <ctype.h>
 
 using namespace std;
 
 #include "devlist.h"
 #include "lib.h"
-#include "report.h"
+#include "report/report.h"
+#include "report/report-maker.h"
 
 #include "process/process.h"
 #include "devices/device.h"
@@ -116,7 +118,7 @@ void collect_open_devices(void)
 			entry2 = readdir(dir2);
 			if (!entry2)
 				break;
-			if (entry2->d_name[0] == '.')
+			if (!isdigit(entry2->d_name[0]))
 				continue;
 			sprintf(filename, "/proc/%s/fd/%s", entry->d_name, entry2->d_name);
 			memset(link, 0, 4096);
@@ -147,8 +149,9 @@ void collect_open_devices(void)
 					continue;
 				dev->pid = strtoull(entry->d_name, NULL, 10);
 				strncpy(dev->device, link, 251);
-				sprintf(filename, "/proc/%s/comm", entry->d_name);
+				dev->device[251] = '\0';
 				strncpy(dev->comm, read_sysfs_string("/proc/%s/comm", entry->d_name).c_str(), 31);
+				dev->comm[31] = '\0';
 				target->push_back(dev);
 
 			}
@@ -273,15 +276,7 @@ static bool devlist_sort(struct devuser * i, struct devuser * j)
 	if (i->pid != j->pid)
 		return i->pid < j->pid;
 
-	return strcmp(i->device, j->device);
-}
-
-static const char *dev_class(int line)
-{
-	if (line & 1) {
-		return "device_odd";
-	}
-	return "device_even";
+	return (strcmp(i->device, j->device)< 0);
 }
 
 void report_show_open_devices(void)
@@ -289,9 +284,6 @@ void report_show_open_devices(void)
 	vector<struct devuser *> *target;
 	unsigned int i;
 	char prev[128], proc[128];
-
-	if ((!reportout.csv_report)&&(!reportout.http_report))
-		return;
 
 	prev[0] = 0;
 
@@ -305,13 +297,13 @@ void report_show_open_devices(void)
 
 	sort(target->begin(), target->end(), devlist_sort);
 
-	if (reporttype) {
-		fprintf(reportout.http_report,_("<h2>Process device activity</h2>\n <table width=\"100%%\">\n"));
-		fprintf(reportout.http_report,_("<tr><th class=\"device\" width=\"40%%\">Process</th><th class=\"device\">Device</th></tr>\n"));
-	}else {
-		fprintf(reportout.csv_report,_("**Process Device Activity**, \n\n"));
-		fprintf(reportout.csv_report,_("Process, Device, \n"));
-	}
+	report.add_header("Process device activity");
+	report.begin_table(TABLE_WIDE);
+	report.begin_row();
+	report.begin_cell(CELL_DEVACTIVITY_PROCESS);
+	report.add("Process");
+	report.begin_cell(CELL_DEVACTIVITY_DEVICE);
+	report.add("Device");
 
 	for (i = 0; i < target->size(); i++) {
 		proc[0] = 0;
@@ -319,19 +311,11 @@ void report_show_open_devices(void)
 		if (strcmp(prev, (*target)[i]->comm) != 0)
 			sprintf(proc, "%s", (*target)[i]->comm);
 
-		if (reporttype)
-			fprintf(reportout.http_report,
-				"<tr class=\"%s\"><td>%s</td><td>%s</td></tr>\n",
-				dev_class(i), proc, (*target)[i]->device);
-		 else
-			fprintf(reportout.csv_report,
-				"%s, %s, \n",
-				proc, (*target)[i]->device);
-
+		report.begin_row(ROW_DEVPOWER);
+		report.begin_cell();
+		report.add(proc);
+		report.begin_cell();
+		report.add((*target)[i]->device);
 		sprintf(prev, "%s", (*target)[i]->comm);
 	}
-	if (reporttype)
-		fprintf(reportout.http_report,"</table></div>\n");
-	else
-		fprintf(reportout.csv_report,"\n");
 }

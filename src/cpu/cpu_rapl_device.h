@@ -20,27 +20,38 @@
  * or just google for it.
  *
  * Authors:
- *	Arjan van de Ven <arjan@linux.intel.com>
+ *	Srinivas Pandruvada <Srinivas.Pandruvada@linux.intel.com>
  */
-#ifndef __INCLUDE_GUARD_REPORT_H_
-#define __INCLUDE_GUARD_REPORT_H_
+#ifndef _INCLUDE_GUARD_CPU_RAPL_DEVICE_H
+#define _INCLUDE_GUARD_CPU_RAPL_DEVICE_H
 
+#include <vector>
 #include <string>
-#include <stdio.h>
 
 using namespace std;
 
-struct reportstream {
-	FILE *http_report;
-	FILE *csv_report;
-	char filename[256];
+#include <sys/time.h>
+#include "cpudevice.h"
+#include "rapl/rapl_interface.h"
+
+class cpu_rapl_device: public cpudevice {
+
+	c_rapl_interface *rapl;
+	time_t		last_time;
+	double		last_energy;
+	double 		consumed_power;
+	bool		device_valid;
+
+public:
+	cpu_rapl_device(cpudevice *parent, const char *classname = "cpu_core", const char *device_name = "cpu_core", class abstract_cpu *_cpu = NULL);
+	~cpu_rapl_device() { delete rapl; }
+	virtual const char * device_name(void) {return "CPU core";};
+	bool device_present() { return device_valid;}
+	virtual double power_usage(struct result_bundle *result, struct parameter_bundle *bundle);
+	virtual void start_measurement(void);
+	virtual void end_measurement(void);
+
 };
 
-void http_header_output(void);
-
-extern bool reporttype;
-extern struct reportstream reportout;
-extern void init_report_output(char *filename_str);
-extern void finish_report_output(void);
 
 #endif

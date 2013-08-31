@@ -32,15 +32,16 @@
 #include <string>
 #include <ctype.h>
 #include <stdio.h>
-#include <stdbool.h>
 #include <math.h>
 #include <stdlib.h>
 
+#include "lib.h"
+
+#ifndef HAVE_NO_PCI
 extern "C" {
 #include <pci/pci.h>
 }
-
-#include "lib.h"
+#endif
 
 #include <stdio.h>
 #include <stdint.h>
@@ -51,14 +52,22 @@ extern "C" {
 #include <sys/stat.h>
 #include <dirent.h>
 #include <locale.h>
-#ifndef DISABLE_I18N
 #include <libintl.h>
-#endif
 #include <limits>
 #include <math.h>
 #include <ncurses.h>
+#include <fcntl.h>
 
 static int kallsyms_read = 0;
+
+int is_turbo(uint64_t freq, uint64_t max, uint64_t maxmo)
+{
+	if (freq != max)
+		return 0;
+	if (maxmo + 1000 != max)
+		return 0;
+	return 1;
+}
 
 double percentage(double F)
 {
@@ -79,20 +88,20 @@ char *hz_to_human(unsigned long hz, char *buffer, int digits)
 	Hz = hz;
 
 	/* default: just put the Number in */
-	sprintf(buffer,_("%9lli"), Hz);
+	sprintf(buffer,"%9lli", Hz);
 
 	if (Hz>1000) {
 		if (digits == 2)
-			sprintf(buffer, _("%4lli MHz"), (Hz+500)/1000);
+			sprintf(buffer, "%4lli MHz", (Hz+500)/1000);
 		else
-			sprintf(buffer, _("%6lli MHz"), (Hz+500)/1000);
+			sprintf(buffer, "%6lli MHz", (Hz+500)/1000);
 	}
 
 	if (Hz>1500000) {
 		if (digits == 2)
-			sprintf(buffer, _("%4.2f GHz"), (Hz+5000.0)/1000000);
+			sprintf(buffer, "%4.2f GHz", (Hz+5000.0)/1000000);
 		else
-			sprintf(buffer, _("%3.1f GHz"), (Hz+5000.0)/1000000);
+			sprintf(buffer, "%3.1f GHz", (Hz+5000.0)/1000000);
 	}
 
 	return buffer;
@@ -158,13 +167,6 @@ void set_max_cpu(int cpu)
 }
 
 
-bool stringless::operator()(const char * const & lhs, const char * const & rhs) const
-{
-	if (strcmp(lhs, rhs) < 0)
-		return true;
-	return false;
-}
-
 void write_sysfs(const string &filename, const string &value)
 {
 	ofstream file;
@@ -172,8 +174,13 @@ void write_sysfs(const string &filename, const string &value)
 	file.open(filename.c_str(), ios::out);
 	if (!file)
 		return;
-	file << value;
-	file.close();
+	try
+	{
+		file << value;
+		file.close();
+	} catch (std::exception &exc) {
+		return;
+	}
 }
 
 int read_sysfs(const string &filename, bool *ok)
@@ -187,10 +194,17 @@ int read_sysfs(const string &filename, bool *ok)
 			*ok = false;
 		return 0;
 	}
-	file >> i;
+	try
+	{
+		file >> i;
+		if (ok)
+			*ok = true;
+	} catch (std::exception &exc) {
+		if (ok)
+			*ok = false;
+		i = 0;
+	}
 	file.close();
-	if (ok)
-		*ok = true;
 	return i;
 }
 
@@ -203,11 +217,17 @@ string read_sysfs_string(const string &filename)
 	file.open(filename.c_str(), ios::in);
 	if (!file)
 		return "";
-	file.getline(content, 4096);
-	file.close();
-	c = strchr(content, '\n');
-	if (c)
-		*c = 0;
+	try
+	{
+		file.getline(content, 4096);
+		file.close();
+		c = strchr(content, '\n');
+		if (c)
+			*c = 0;
+	} catch (std::exception &exc) {
+		file.close();
+		return "";
+	}
 	return content;
 }
 
@@ -224,11 +244,17 @@ string read_sysfs_string(const char *format, const char *param)
 	file.open(filename, ios::in);
 	if (!file)
 		return "";
-	file.getline(content, 4096);
-	file.close();
-	c = strchr(content, '\n');
-	if (c)
-		*c = 0;
+	try
+	{
+		file.getline(content, 4096);
+		file.close();
+		c = strchr(content, '\n');
+		if (c)
+			*c = 0;
+	} catch (std::exception &exc) {
+		file.close();
+		return "";
+	}
 	return content;
 }
 
@@ -243,13 +269,12 @@ void format_watts(double W, char *buffer, unsigned int len)
 	if (W < 0.0001)
 		sprintf(buffer, _("    0 mW"));
 
-#ifndef DISABLE_NCURSES
 	while (mbstowcs(NULL,buffer,0) < len)
 		strcat(buffer, " ");
-#endif
 }
 
 
+#ifndef HAVE_NO_PCI
 static struct pci_access *pci_access;
 
 char *pci_id_to_name(uint16_t vendor, uint16_t device, char *buffer, int len)
@@ -273,6 +298,19 @@ void end_pci_access(void)
 	if (pci_access)
 		pci_free_name_list(pci_access);
 }
+
+#else
+
+char *pci_id_to_name(uint16_t vendor, uint16_t device, char *buffer, int len)
+{
+	return NULL;
+}
+
+void end_pci_access(void)
+{
+}
+
+#endif /* HAVE_NO_PCI */
 
 int utf_ok = -1;
 
@@ -412,4 +450,68 @@ int get_user_input(char *buf, unsigned sz)
 	fflush(stdout);
 	/* to distinguish between getnstr error and empty line */
 	return ret || strlen(buf);
+}
+
+int read_msr(int cpu, uint64_t offset, uint64_t *value)
+{
+	ssize_t retval;
+	uint64_t msr;
+	int fd;
+	char msr_path[256];
+
+	fd = sprintf(msr_path, "/dev/cpu/%d/msr", cpu);
+
+	if (access(msr_path, R_OK) != 0){
+		fd = sprintf(msr_path, "/dev/msr%d", cpu);
+
+		if (access(msr_path, R_OK) != 0){
+			fprintf(stderr,
+			 _("Model-specific registers (MSR)\
+			 not found (try enabling CONFIG_X86_MSR).\n"));
+			return -1;
+		}
+	}
+
+	fd = open(msr_path, O_RDONLY);
+	if (fd < 0)
+		return -1;
+	retval = pread(fd, &msr, sizeof msr, offset);
+	close(fd);
+	if (retval != sizeof msr) {
+		return -1;
+	}
+	*value = msr;
+
+	return retval;
+}
+
+int write_msr(int cpu, uint64_t offset, uint64_t value)
+{
+	ssize_t retval;
+	int fd;
+	char msr_path[256];
+
+	fd = sprintf(msr_path, "/dev/cpu/%d/msr", cpu);
+
+	if (access(msr_path, R_OK) != 0){
+		fd = sprintf(msr_path, "/dev/msr%d", cpu);
+
+		if (access(msr_path, R_OK) != 0){
+			fprintf(stderr,
+			 _("Model-specific registers (MSR)\
+			 not found (try enabling CONFIG_X86_MSR).\n"));
+			return -1;
+		}
+	}
+
+	fd = open(msr_path, O_WRONLY);
+	if (fd < 0)
+		return -1;
+	retval = pwrite(fd, &value, sizeof value, offset);
+	close(fd);
+	if (retval != sizeof value) {
+		return -1;
+	}
+
+	return retval;
 }

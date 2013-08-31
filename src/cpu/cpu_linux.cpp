@@ -38,26 +38,13 @@
 #include <sys/stat.h>
 #include <dirent.h>
 
-static int is_turbo(uint64_t freq, uint64_t max, uint64_t maxmo)
-{
-	if (freq != max)
-		return 0;
-	if (maxmo + 1000 != max)
-		return 0;
-	return 1;
-}
-
-void cpu_linux::measurement_start(void)
+void cpu_linux::parse_cstates_start(void)
 {
 	ifstream file;
-
 	DIR *dir;
 	struct dirent *entry;
 	char filename[256];
 	int len;
-	unsigned int i;
-
-	abstract_cpu::measurement_start();
 
 	len = sprintf(filename, "/sys/devices/system/cpu/cpu%i/cpuidle", number);
 
@@ -111,9 +98,16 @@ void cpu_linux::measurement_start(void)
 
 	}
 	closedir(dir);
+}
+
+
+void cpu_linux::parse_pstates_start(void)
+{
+	ifstream file;
+	char filename[256];
+	unsigned int i;
 
 	last_stamp = 0;
-
 	for (i = 0; i < children.size(); i++)
 		if (children[i])
 			children[i]->wiggle();
@@ -136,8 +130,14 @@ void cpu_linux::measurement_start(void)
 	account_freq(0, 0);
 }
 
+void cpu_linux::measurement_start(void)
+{
+	abstract_cpu::measurement_start();
+	parse_cstates_start();
+	parse_pstates_start();
+}
 
-void cpu_linux::measurement_end(void)
+void cpu_linux::parse_cstates_end(void)
 {
 	DIR *dir;
 	struct dirent *entry;
@@ -187,6 +187,12 @@ void cpu_linux::measurement_end(void)
 
 	}
 	closedir(dir);
+}
+
+void cpu_linux::parse_pstates_end(void)
+{
+	char filename[256];
+	ifstream file;
 
 	sprintf(filename, "/sys/devices/system/cpu/cpu%i/cpufreq/stats/time_in_state", number);
 
@@ -216,11 +222,14 @@ void cpu_linux::measurement_end(void)
 		}
 		file.close();
 	}
-
-
-	abstract_cpu::measurement_end();
 }
 
+void cpu_linux::measurement_end(void)
+{
+	parse_cstates_end();
+	parse_pstates_end();
+	abstract_cpu::measurement_end();
+}
 
 char * cpu_linux::fill_cstate_line(int line_nr, char *buffer, const char *separator)
 {
@@ -237,9 +246,50 @@ char * cpu_linux::fill_cstate_line(int line_nr, char *buffer, const char *separa
 			continue;
 
 		if (line_nr == LEVEL_C0)
-			sprintf(buffer,"%5.1f%%%s", percentage(cstates[i]->duration_delta / time_factor), separator);
+			sprintf(buffer,"%5.1f%%", percentage(cstates[i]->duration_delta / time_factor));
 		else
-			sprintf(buffer,"%5.1f%%%s %6.1f ms", percentage(cstates[i]->duration_delta / time_factor), separator, 1.0 * cstates[i]->duration_delta / (1+cstates[i]->usage_delta) / 1000);
+			sprintf(buffer,"%5.1f%%%s %6.1f ms",
+				percentage(cstates[i]->duration_delta / time_factor),
+				separator,
+				1.0 * cstates[i]->duration_delta / (1 + cstates[i]->usage_delta) / 1000);
+	}
+
+	return buffer;
+}
+
+char * cpu_linux::fill_cstate_percentage(int line_nr, char *buffer)
+{
+	unsigned int i;
+	buffer[0] = 0;
+
+	for (i = 0; i < cstates.size(); i++) {
+		if (cstates[i]->line_level != line_nr)
+			continue;
+
+		sprintf(buffer,"%5.1f%%",
+			percentage(cstates[i]->duration_delta / time_factor));
+		break;
+	}
+
+	return buffer;
+}
+
+char * cpu_linux::fill_cstate_time(int line_nr, char *buffer)
+{
+	unsigned int i;
+	buffer[0] = 0;
+
+	if (line_nr == LEVEL_C0)
+		return buffer;
+
+	for (i = 0; i < cstates.size(); i++) {
+		if (cstates[i]->line_level != line_nr)
+			continue;
+
+		sprintf(buffer,"%6.1f ms",
+			1.0 * cstates[i]->duration_delta /
+			(1 + cstates[i]->usage_delta) / 1000);
+		break;
 	}
 
 	return buffer;
@@ -295,93 +345,4 @@ char * cpu_linux::fill_pstate_line(int line_nr, char *buffer)
 
 	sprintf(buffer," %5.1f%% ", percentage(1.0* (pstates[line_nr]->time_after) / total_stamp));
 	return buffer;
-}
-
-
-
-
-void cpu_linux::account_freq(uint64_t freq, uint64_t duration)
-{
-	struct frequency *state = NULL;
-	unsigned int i;
-
-
-	for (i = 0; i < pstates.size(); i++) {
-		if (freq == pstates[i]->freq) {
-			state = pstates[i];
-			break;
-		}
-	}
-
-	if (!state) {
-		state = new(std::nothrow) struct frequency;
-
-		if (!state)
-			return;
-
-		memset(state, 0, sizeof(*state));
-
-		pstates.push_back(state);
-
-		state->freq = freq;
-		hz_to_human(freq, state->human_name);
-		if (freq == 0)
-			strcpy(state->human_name, _("Idle"));
-		if (is_turbo(freq, max_frequency, max_minus_one_frequency))
-			sprintf(state->human_name, _("Turbo Mode"));
-
-		state->after_count = 1;
-	}
-
-
-	state->time_after += duration;
-
-
-}
-
-void cpu_linux::change_freq(uint64_t time, int frequency)
-{
-	current_frequency = frequency;
-
-	if (parent)
-		parent->calculate_freq(time);
-	old_idle = idle;
-}
-
-void cpu_linux::change_effective_frequency(uint64_t time, uint64_t frequency)
-{
-	uint64_t time_delta, fr;
-
-	if (last_stamp)
-		time_delta = time - last_stamp;
-	else
-		time_delta = 1;
-
-	fr = effective_frequency;
-	if (old_idle)
-		fr = 0;
-
-	account_freq(fr, time_delta);
-
-	effective_frequency = frequency;
-	last_stamp = time;
-}
-
-void cpu_linux::go_idle(uint64_t time)
-{
-
-	idle = true;
-
-	if (parent)
-		parent->calculate_freq(time);
-	old_idle = idle;
-}
-
-
-void cpu_linux::go_unidle(uint64_t time)
-{
-	idle = false;
-	if (parent)
-		parent->calculate_freq(time);
-	old_idle = idle;
 }

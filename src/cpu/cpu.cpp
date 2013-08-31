@@ -28,15 +28,19 @@
 #include <string.h>
 #include <stdlib.h>
 #include <ncurses.h>
-
+#include <unistd.h>
 #include "cpu.h"
 #include "cpudevice.h"
+#include "cpu_rapl_device.h"
+#include "dram_rapl_device.h"
+#include "intel_cpus.h"
 #include "../parameters/parameters.h"
 
 #include "../perf/perf_bundle.h"
 #include "../lib.h"
 #include "../display.h"
-#include "../report.h"
+#include "../report/report.h"
+#include "../report/report-maker.h"
 
 static class abstract_cpu system_level;
 
@@ -57,6 +61,9 @@ static class abstract_cpu * new_package(int package, int cpu, char * vendor, int
 {
 	class abstract_cpu *ret = NULL;
 	class cpudevice *cpudev;
+	class cpu_rapl_device *cpu_rapl_dev;
+	class dram_rapl_device *dram_rapl_dev;
+
 	char packagename[128];
 	if (strcmp(vendor, "GenuineIntel") == 0) {
 		if (family == 6)
@@ -74,7 +81,13 @@ static class abstract_cpu * new_package(int package, int cpu, char * vendor, int
 			case 0x2A:	/* SNB */
 			case 0x2D:	/* SNB Xeon */
 			case 0x3A:      /* IVB */
+			case 0x3C:
 			case 0x3D:      /* IVB Xeon */
+				has_c2c7_res = 1;
+				ret = new class nhm_package;
+				break;
+			case 0x45:	/* Next Gen Intel Core Processor */
+				has_c8c9c10_res = 1;
 				has_c2c7_res = 1;
 				ret = new class nhm_package;
 				break;
@@ -85,11 +98,23 @@ static class abstract_cpu * new_package(int package, int cpu, char * vendor, int
 		ret = new class cpu_package;
 
 	ret->set_number(package, cpu);
+	ret->set_type("Package");
 	ret->childcount = 0;
 
 	sprintf(packagename, _("cpu package %i"), cpu);
 	cpudev = new class cpudevice(_("cpu package"), packagename, ret);
 	all_devices.push_back(cpudev);
+
+	sprintf(packagename, _("cpu rapl package %i"), cpu);
+	cpu_rapl_dev = new class cpu_rapl_device(cpudev, _("cpu rapl package"), packagename, ret);
+	if (cpu_rapl_dev->device_present())
+		all_devices.push_back(cpu_rapl_dev);
+
+	sprintf(packagename, _("dram rapl package %i"), cpu);
+	dram_rapl_dev = new class dram_rapl_device(cpudev, _("dram rapl package"), packagename, ret);
+	if (dram_rapl_dev->device_present())
+		all_devices.push_back(dram_rapl_dev);
+
 	return ret;
 }
 
@@ -106,12 +131,13 @@ static class abstract_cpu * new_core(int core, int cpu, char * vendor, int famil
 			case 0x2E:	/* Nehalem-EX Xeon */
 			case 0x2F:	/* Westmere-EX Xeon */
 			case 0x25:	/* Westmere */
-			case 0x27:	/* Medfield Atom*/
 			case 0x2C:	/* Westmere */
 			case 0x2A:	/* SNB */
 			case 0x2D:	/* SNB Xeon */
 			case 0x3A:      /* IVB */
+			case 0x3C:
 			case 0x3D:      /* IVB Xeon */
+			case 0x45:	/* Next Gen Intel Core Processor */
 				ret = new class nhm_core;
 			}
 	}
@@ -120,6 +146,18 @@ static class abstract_cpu * new_core(int core, int cpu, char * vendor, int famil
 		ret = new class cpu_core;
 	ret->set_number(core, cpu);
 	ret->childcount = 0;
+	ret->set_type("Core");
+
+	return ret;
+}
+
+static class abstract_cpu * new_i965_gpu(void)
+{
+	class abstract_cpu *ret = NULL;
+
+	ret = new class i965_core;
+	ret->childcount = 0;
+	ret->set_type("GPU");
 
 	return ret;
 }
@@ -137,12 +175,13 @@ static class abstract_cpu * new_cpu(int number, char * vendor, int family, int m
 			case 0x2E:	/* Nehalem-EX Xeon */
 			case 0x2F:	/* Westmere-EX Xeon */
 			case 0x25:	/* Westmere */
-			case 0x27:	/* Medfield Atom*/
 			case 0x2C:	/* Westmere */
 			case 0x2A:	/* SNB */
 			case 0x2D:	/* SNB Xeon */
 			case 0x3A:      /* IVB */
+			case 0x3C:
 			case 0x3D:      /* IVB Xeon */
+			case 0x45:	/* Next Gen Intel Core Processor */
 				ret = new class nhm_cpu;
 			}
 	}
@@ -150,6 +189,7 @@ static class abstract_cpu * new_cpu(int number, char * vendor, int family, int m
 	if (!ret)
 		ret = new class cpu_linux;
 	ret->set_number(number, number);
+	ret->set_type("CPU");
 	ret->childcount = 0;
 
 	return ret;
@@ -220,6 +260,26 @@ static void handle_one_cpu(unsigned int number, char *vendor, int family, int mo
 	all_cpus[number] = cpu;
 }
 
+static void handle_i965_gpu(void)
+{
+	unsigned int core_number = 0;
+	class abstract_cpu *package;
+
+
+	package = system_level.children[0];
+
+	core_number = package->children.size();
+
+	if (package->children.size() <= core_number)
+		package->children.resize(core_number + 1, NULL);
+
+	if (!package->children[core_number]) {
+		package->children[core_number] = new_i965_gpu();
+		package->childcount++;
+	}
+}
+
+
 void enumerate_cpus(void)
 {
 	ifstream file;
@@ -234,6 +294,8 @@ void enumerate_cpus(void)
 
 	if (!file)
 		return;
+	/* Not all /proc/cpuinfo include "vendor_id\t". */
+	vendor[0] = '\0';
 
 	while (file) {
 
@@ -273,13 +335,23 @@ void enumerate_cpus(void)
 			}
 		}
 		if (strncasecmp(line, "bogomips\t", 9) == 0) {
-			handle_one_cpu(number, vendor, family, model);
-			set_max_cpu(number);
+			if (number == -1) {
+				/* Not all /proc/cpuinfo include "processor\t". */
+				number = 0;
+			}
+			if (number >= 0) {
+				handle_one_cpu(number, vendor, family, model);
+				set_max_cpu(number);
+				number = -2;
+			}
 		}
 	}
 
 
 	file.close();
+
+	if (access("/sys/class/drm/card0/power/rc6_residency_ms", R_OK) == 0)
+		handle_i965_gpu();
 
 	perf_events = new perf_power_bundle();
 
@@ -308,41 +380,6 @@ static void expand_string(char *string, unsigned int newlen)
 {
 	while (strlen(string) < newlen)
 		strcat(string, " ");
-}
-
-
-static const char *core_class(int line)
-{
-	if (line & 1)
-		return "core_odd";
-	return "core_even";
-}
-
-static const char *package_class(int line)
-{
-	if (line & 1)
-		return "package_odd";
-	return "package_even";
-}
-
-static const char *cpu_class(int line, int cpu)
-{
-	if (line & 1) {
-		if (cpu & 1)
-			return "cpu_odd_odd";
-		return "cpu_odd_even";
-	}
-	if (cpu & 1)
-		return "cpu_even_odd";
-	return "cpu_even_even";
-}
-
-static const char *freq_class(int line)
-{
-	if (line & 1) {
-		return "cpu_odd_freq";
-	}
-	return "cpu_even_req";
 }
 
 static int has_state_level(class abstract_cpu *acpu, int state, int line)
@@ -385,202 +422,173 @@ static const char * fill_state_line(class abstract_cpu *acpu, int state, int lin
 	return "-EINVAL";
 }
 
+static int get_cstates_num(void)
+{
+	unsigned int package, core, cpu;
+	class abstract_cpu *_package, * _core, * _cpu;
+	unsigned int i;
+	int cstates_num;
+
+	for (package = 0, cstates_num = 0;
+			package < system_level.children.size(); package++) {
+		_package = system_level.children[package];
+		if (_package == NULL)
+			continue;
+
+		/* walk package cstates and get largest cstates number */
+		for (i = 0; i < _package->cstates.size(); i++)
+			cstates_num = std::max(cstates_num,
+						(_package->cstates[i])->line_level);
+
+		/*
+		 * for each core in this package, walk core cstates and get
+		 * largest cstates number
+		 */
+		for (core = 0; core < _package->children.size(); core++) {
+			_core = _package->children[core];
+			if (_core == NULL)
+				continue;
+
+			for (i = 0; i <  _core->cstates.size(); i++)
+				cstates_num = std::max(cstates_num,
+						(_core->cstates[i])->line_level);
+
+			/*
+			 * for each core, walk the logical cpus in case
+			 * there is are more linux cstates than hw cstates
+			 */
+			 for (cpu = 0; cpu < _core->children.size(); cpu++) {
+				_cpu = _core->children[cpu];
+				if (_cpu == NULL)
+					continue;
+
+				for (i = 0; i < _cpu->cstates.size(); i++)
+					cstates_num = std::max(cstates_num,
+						(_cpu->cstates[i])->line_level);
+			}
+		}
+	}
+
+	return cstates_num;
+}
+
 void report_display_cpu_cstates(void)
 {
 	char buffer[512], buffer2[512];
 	unsigned int package, core, cpu;
-	int line;
+	int line, cstates_num;
 	class abstract_cpu *_package, * _core, * _cpu;
 
-	if ((!reportout.csv_report)&&(!reportout.http_report))
-		return;
+	cstates_num = get_cstates_num();
 
-	if (reporttype)
-		fprintf(reportout.http_report,
-			"<div id=\"cpuidle\"><h2>Processor Idle state report</h2>\n");
-	else
-		fprintf(reportout.csv_report,
-			"**Processor Idle State Report**, \n");
-
+	report.begin_section(SECTION_CPUIDLE);
+	report.add_header("Processor Idle state report");
 
 	for (package = 0; package < system_level.children.size(); package++) {
-		int first_pkg = 0;
+		bool first_core = true;
+
 		_package = system_level.children[package];
 		if (!_package)
 			continue;
 
-		if (reporttype)
-			fprintf(reportout.http_report,"<table width=\"100%%\">\n");
-		else
-			fprintf(reportout.csv_report,"\n");
-
+		report.begin_table(TABLE_WIDE);
 		for (core = 0; core < _package->children.size(); core++) {
-			int actual_line = 0;
 			_core = _package->children[core];
 			if (!_core)
 				continue;
 
-			for (line = LEVEL_HEADER; line < 10; line++) {
-				int first = 1;
+			for (line = LEVEL_HEADER; line <= cstates_num; line++) {
+				bool first_cpu = true;
+
 				if (!_package->has_cstate_level(line))
 					continue;
 
-				actual_line++;
-				if (reporttype)
-					fprintf(reportout.http_report, "<tr>");
-
+				report.begin_row();
 				buffer[0] = 0;
 				buffer2[0] = 0;
 
 				if (line == LEVEL_HEADER) {
-					if (first_pkg == 0) {
-						if (reporttype)
-							fprintf(reportout.http_report,
-										"<th colspan=2 class=\"package_header\" width=\"25%%\">%s</th>"
-										, _package->fill_cstate_line(line, buffer));
-						else
-							fprintf(reportout.csv_report, ",%s,", "Package");
-
+					if (first_core) {
+						report.begin_cell(CELL_FIRST_PACKAGE_HEADER);
+						report.addf(__("Package %i"), _package->get_number());
 					} else {
-						if (reporttype)
-							fprintf(reportout.http_report, "<th colspan=2 class=\"package_header\">&nbsp;</th>");
+						report.begin_cell(CELL_EMPTY_PACKAGE_HEADER);
+						report.add_empty_cell();
 					}
-
-				} else if (first_pkg == 0) {
-
-					if (reporttype)
-						fprintf(reportout.http_report, "<td class=\"%s\" width=\"10%%\">%s</td><td class=\"%s\">%s</td>",
-							freq_class(actual_line),
-							_package->fill_cstate_name(line, buffer),
-							package_class(actual_line),
-							_package->fill_cstate_line(line, buffer2));
-					else
-						fprintf(reportout.csv_report, "%s, %s,",
-							_package->fill_cstate_name(line, buffer),
-							_package->fill_cstate_line(line, buffer2));
-
-
+				} else if (first_core) {
+					report.begin_cell(CELL_STATE_NAME);
+					report.add(_package->fill_cstate_name(line, buffer));
+					report.begin_cell(CELL_PACKAGE_STATE_VALUE);
+					report.add(_package->fill_cstate_line(line, buffer2));
 				} else {
-					if (reporttype)
-						fprintf(reportout.http_report,"<td colspan=2>&nbsp;</td>");
+					report.begin_cell(CELL_EMPTY_PACKAGE_STATE);
+					report.add_empty_cell();
 				}
 
-
-				if (reporttype)
-						fprintf(reportout.http_report,"<td width=\"2%%\">&nbsp;</td>");
+				report.begin_cell(CELL_SEPARATOR);
+				report.add_empty_cell();
 
 				if (!_core->can_collapse()) {
 					buffer[0] = 0;
 					buffer2[0] = 0;
 
 					if (line == LEVEL_HEADER) {
-						if (reporttype) {
-							fprintf(reportout.http_report,
-								"<th colspan=2 class=\"core_header\" width=\"25%%\">%s</th>",
-								_core->fill_cstate_line(line, buffer2));
-					    } else {
-							if (!first_pkg==0) {
-								fprintf(reportout.csv_report,
-									",,,Core %s ,,",
-									_core->fill_cstate_line(line, buffer2));
+						report.begin_cell(CELL_CORE_HEADER);
+						/* Here we need to check for which core type we
+  						 * are using. Do not use the core type for the 
+  						 * report.addf as it breaks an important macro use 
+  						 * for translation decision making for the reports. 
+  						   */
+						const char* core_type = _core->get_type(); 
+					        if (core_type != NULL) {	
+							if (strcmp(core_type, "Core") == 0 ) {
+								report.addf(__("Core %i"), _core->get_number());
 							} else {
-							fprintf(reportout.csv_report,
-									",Core %s ,,",
-									_core->fill_cstate_line(line, buffer2));
+								report.addf(__("GPU %i"), _core->get_number());
+							} 
 						}
-					    }
-					} else {
-						if (reporttype) {
-							fprintf(reportout.http_report,
-								"<td class=\"%s\" width=\"10%%\">%s</td><td class=\"%s\">%s</td>",
-								freq_class(actual_line),
-								_core->fill_cstate_name(line, buffer),
-								core_class(actual_line),
-								_core->fill_cstate_line(line, buffer2));
-						} else {
-							if (first_pkg==0) {
-								fprintf(reportout.csv_report,
-									"%s, %s,",
-									_core->fill_cstate_name(line, buffer),
-									_core->fill_cstate_line(line, buffer2));
-							} else {
-								fprintf(reportout.csv_report,
-									",,%s, %s,",
-									_core->fill_cstate_name(line, buffer),
-									_core->fill_cstate_line(line, buffer2));
-							}
-						}
+                                       } else {
+                                                report.begin_cell(CELL_STATE_NAME);
+                                                report.add(_core->fill_cstate_name(line, buffer));
+						report.begin_cell(CELL_CORE_STATE_VALUE);
+						report.add(_core->fill_cstate_line(line, buffer2));
 					}
 				}
 
-				if (reporttype)
-					fprintf(reportout.http_report,"<td width=\"2%%\">&nbsp;</td>");
+				report.begin_cell(CELL_SEPARATOR);
+				report.add_empty_cell();
 
 				for (cpu = 0; cpu < _core->children.size(); cpu++) {
 					_cpu = _core->children[cpu];
 					if (!_cpu)
 						continue;
 
+					report.set_cpu_number(cpu);
 					if (line == LEVEL_HEADER) {
-						if (reporttype)
-							fprintf(reportout.http_report,"<th colspan=3 class=\"cpu_header\">%s</th>",
-								_cpu->fill_cstate_line(line, buffer));
-						else
-							fprintf(reportout.csv_report, ",%s,",
-									_cpu->fill_cstate_line(line, buffer));
-					} else {
-						if (first == 1) {
-							if (reporttype )
-								fprintf(reportout.http_report,"<td class=\"%s\" width=\"10%%\">%s</td>",
-									freq_class(actual_line),
-									_cpu->fill_cstate_name(line, buffer));
-							else
-								fprintf(reportout.csv_report, "%s,",
-									_cpu->fill_cstate_name(line, buffer));
-
-							first = 0;
-							buffer[0] = 0;
-
-							if (reporttype) {
-								sprintf(buffer2, "</td><td class=\"%s\">",
-									cpu_class(actual_line, cpu));
-
-								fprintf(reportout.http_report,"<td class=\"%s\">%s</td>",
-									cpu_class(actual_line, cpu),
-									_cpu->fill_cstate_line(line, buffer, buffer2));
-							}else {
-								fprintf(reportout.csv_report,"%s,",
-									_cpu->fill_cstate_line(line, buffer, ","));
-							}
-						} else {
-							buffer[0] = 0;
-
-							if (reporttype) {
-								sprintf(buffer2, "</td><td class=\"%s\">",
-									cpu_class(actual_line, cpu));
-
-								fprintf(reportout.http_report,"<td colspan=2 class=\"s\">%s</td>",
-									_cpu->fill_cstate_line(line, buffer, buffer2));
-							} else {
-								fprintf(reportout.csv_report, "%s,",
-									_cpu->fill_cstate_line(line, buffer, ","));
-							}
-						}
+						report.begin_cell(CELL_CPU_CSTATE_HEADER);
+						report.addf(__("CPU %i"), _cpu->get_number());
+						continue;
 					}
 
+					if (first_cpu) {
+						report.begin_cell(CELL_STATE_NAME);
+						report.add(_cpu->fill_cstate_name(line, buffer));
+						first_cpu = false;
+					}
+
+					buffer[0] = 0;
+					report.begin_cell(CELL_CPU_STATE_VALUE);
+					report.add(_cpu->fill_cstate_percentage(line, buffer));
+					report.begin_cell(CELL_CPU_STATE_VALUE);
+					if (line != LEVEL_C0)
+						report.add(_cpu->fill_cstate_time(line, buffer));
+					else
+						report.add_empty_cell();
 				}
-				if (reporttype)
-					fprintf(reportout.http_report, "</tr>\n");
-				else
-					fprintf(reportout.csv_report, "\n");
 			}
 
-			first_pkg++;
+			first_core = false;
 		}
-		if (reporttype)
-			fprintf(reportout.http_report,"</table></div>\n");
-		else
-			fprintf(reportout.csv_report, "\n");
 	}
 }
 
@@ -590,122 +598,76 @@ void report_display_cpu_pstates(void)
 	unsigned int package, core, cpu;
 	int line;
 	class abstract_cpu *_package, * _core, * _cpu;
+	unsigned int i, pstates_num;
 
-	if ((!reportout.csv_report)&&(!reportout.http_report))
-		return;
+	for (i = 0, pstates_num = 0; i < all_cpus.size(); i++)
+		if (all_cpus[i])
+			pstates_num = std::max<unsigned int>(pstates_num,
+								all_cpus[i]->pstates.size());
 
-	if (reporttype)
-		fprintf(reportout.http_report, "<div id=\"cpufreq\"><h2>Processor frequency report</h2>\n");
-	else
-		fprintf(reportout.csv_report, "**Processor Frequency Report**, \n");
+	report.begin_section(SECTION_CPUFREQ);
+	report.add_header("Processor Frequency Report");
 
 	for (package = 0; package < system_level.children.size(); package++) {
-		int first_pkg = 0;
+		bool first_core = true;
+
 		_package = system_level.children[package];
 		if (!_package)
 			continue;
 
-		if (reporttype)
-			fprintf(reportout.http_report,"<table width=\"100%%\">\n");
-		else
-			fprintf(reportout.csv_report,"\n");
-
-
+		report.begin_table(TABLE_WIDE);
 		for (core = 0; core < _package->children.size(); core++) {
 			_core = _package->children[core];
 			if (!_core)
 				continue;
 
-			for (line = LEVEL_HEADER; line < 10; line++) {
-				int first = 1;
+			if (!_core->has_pstates())
+				continue;
+
+			for (line = LEVEL_HEADER; line < (int)pstates_num; line++) {
+				bool first_cpu = true;
 
 				if (!_package->has_pstate_level(line))
 					continue;
 
-
-				if (reporttype)
-					fprintf(reportout.http_report,"<tr>");
+				report.begin_row();
 
 				buffer[0] = 0;
 				buffer2[0] = 0;
-				if (first_pkg == 0) {
+				if (first_core) {
 					if (line == LEVEL_HEADER) {
-						 if (reporttype)
-								fprintf(reportout.http_report,
-									"<th colspan=2 class=\"package_header\" width=\"25%%\">%s%s</th>",
-									_package->fill_pstate_name(line, buffer),
-									_package->fill_pstate_line(line, buffer2));
-						else
-								fprintf(reportout.csv_report,",%s,", "Package");
-
+						report.begin_cell(CELL_FIRST_PACKAGE_HEADER);
+						report.addf(__("Package %i"), _package->get_number());
 					} else {
-						if (reporttype) {
-							fprintf(reportout.http_report,
-								"<td class=\"%s\" width=\"10%%\">%s</td><td class=\"%s\">%s</td>",
-								freq_class(line),
-								_package->fill_pstate_name(line, buffer),
-								package_class(line),
-								_package->fill_pstate_line(line, buffer2));
-						} else {
-							fprintf(reportout.csv_report,"%s, %s,",
-								_package->fill_pstate_name(line, buffer),
-								_package->fill_pstate_line(line, buffer2));
-						}
+						report.begin_cell(CELL_STATE_NAME);
+						report.add(_package->fill_pstate_name(line, buffer));
+						report.begin_cell(CELL_PACKAGE_STATE_VALUE);
+						report.add(_package->fill_pstate_line(line, buffer2));
 					}
 				} else {
-					if (reporttype)
-						fprintf(reportout.http_report,"<td colspan=2>&nbsp;</td>");
+					report.begin_cell(CELL_EMPTY_PACKAGE_STATE);
+					report.add_empty_cell();
 				}
 
-
-				if (reporttype)
-					fprintf(reportout.http_report,"<td width=\"2%%\">&nbsp;</td>");
+				report.begin_cell(CELL_SEPARATOR);
+				report.add_empty_cell();
 
 				if (!_core->can_collapse()) {
 					buffer[0] = 0;
 					buffer2[0] = 0;
 					if (line == LEVEL_HEADER) {
-						if (reporttype) {
-						fprintf(reportout.http_report,
-							"<th colspan=2 class=\"core_header\" width=\"25%%\">%s%s</th>",
-							_core->fill_pstate_name(line, buffer),
-							_core->fill_pstate_line(line, buffer2));
-						} else {
-							if (first_pkg == 0) {
-								fprintf(reportout.csv_report, "%s,%s,,",
-									_core->fill_pstate_name(line, buffer),
-									_core->fill_pstate_line(line, buffer2));
-							} else {
-								fprintf(reportout.csv_report, ",,%s,%s,,",
-									_core->fill_pstate_name(line, buffer),
-									_core->fill_pstate_line(line, buffer2));
-
-							}
-						}
-					}else {
-						if (reporttype)	{
-							fprintf(reportout.http_report,
-								"<td class=\"%s\" width=\"10%%\">%s</td><td class=\"%s\">%s</td>",
-								freq_class(line),
-								_core->fill_pstate_name(line, buffer),
-								core_class(line),
-								_core->fill_pstate_line(line, buffer2));
-						} else {
-							if (first_pkg == 0) {
-								fprintf(reportout.csv_report, "%s,%s,",
-									_core->fill_pstate_name(line, buffer),
-									_core->fill_pstate_line(line, buffer2));
-							} else {
-								fprintf(reportout.csv_report, ",,%s,%s,",
-									_core->fill_pstate_name(line, buffer),
-									_core->fill_pstate_line(line, buffer2));
-							}
-						}
+						report.begin_cell(CELL_CORE_HEADER);
+						report.addf(__("Core %i"), _core->get_number());
+					} else {
+						report.begin_cell(CELL_STATE_NAME);
+						report.add(_core->fill_pstate_name(line, buffer));
+						report.begin_cell(CELL_PACKAGE_STATE_VALUE);
+						report.add(_core->fill_pstate_line(line, buffer2));
 					}
 				}
 
-				if (reporttype)
-					fprintf(reportout.http_report,"<td width=\"2%%\">&nbsp;</td>");
+				report.begin_cell(CELL_SEPARATOR);
+				report.add_empty_cell();
 
 				for (cpu = 0; cpu < _core->children.size(); cpu++) {
 					buffer[0] = 0;
@@ -713,86 +675,57 @@ void report_display_cpu_pstates(void)
 					if (!_cpu)
 						continue;
 
+					report.set_cpu_number(cpu);
 					if (line == LEVEL_HEADER) {
-						if (reporttype)
-							fprintf(reportout.http_report,
-								"<th colspan=2 class=\"cpu_header\">%s</th>",
-								_cpu->fill_pstate_line(line, buffer));
-						else
-							fprintf(reportout.csv_report, "%s,",
-								_cpu->fill_pstate_line(line, buffer));
-					} else {
-						if (first == 1) {
-							if (reporttype)
-								fprintf(reportout.http_report,
-									"<td class=\"%s\" width=\"10%%\">%s</td>",
-									freq_class(line),
-									_cpu->fill_pstate_name(line, buffer));
-							else
-								fprintf(reportout.csv_report,"%s,",
-									_cpu->fill_pstate_name(line, buffer));
-
-							first = 0;
-							buffer[0] = 0;
-
-							if (reporttype)
-								fprintf(reportout.http_report,"<td class=\"%s\">%s</td>",
-									cpu_class(line, cpu),
-									_cpu->fill_pstate_line(line, buffer));
-							else
-								fprintf(reportout.csv_report, "%s,",
-									_cpu->fill_pstate_line(line, buffer));
-
-						} else {
-
-							buffer[0] = 0;
-
-							if (reporttype)
-								fprintf(reportout.http_report,
-									"<td colspan=2 class=\"%s\">%s</td>",
-									cpu_class(line, cpu),
-									_cpu->fill_pstate_line(line, buffer));
-							else
-								fprintf(reportout.csv_report,"%s,",
-									_cpu->fill_pstate_line(line, buffer));
-
-						}
+						report.begin_cell(CELL_CPU_PSTATE_HEADER);
+						report.addf(__("CPU %i"), _cpu->get_number());
+						continue;
 					}
-				}
-				if (reporttype)
-					fprintf(reportout.http_report,"</tr>\n");
-				else
-					fprintf(reportout.csv_report, "\n");
 
+					if (first_cpu) {
+						report.begin_cell(CELL_STATE_NAME);
+						report.add(_cpu->fill_pstate_name(line, buffer));
+						first_cpu = false;
+					}
+
+					buffer[0] = 0;
+					report.begin_cell(CELL_CPU_STATE_VALUE);
+					report.add(_cpu->fill_pstate_line(line, buffer));
+				}
 			}
 
-			first_pkg++;
+			first_core = false;
 		}
-
-
 	}
-
-	if (reporttype)
-		fprintf(reportout.http_report,"</table></div>");
-	else
-		fprintf(reportout.csv_report, "\n");
 }
 
 void impl_w_display_cpu_states(int state)
 {
-#ifndef DISABLE_NCURSES
 	WINDOW *win;
 	char buffer[128];
 	char linebuf[1024];
 	unsigned int package, core, cpu;
-	int line;
+	int line, loop, cstates_num, pstates_num;
 	class abstract_cpu *_package, * _core, * _cpu;
 	int ctr = 0;
+	unsigned int i;
 
-	if (state == PSTATE)
+	cstates_num = get_cstates_num();
+
+	for (i = 0, pstates_num = 0; i < all_cpus.size(); i++) {
+		if (!all_cpus[i])
+			continue;
+
+		pstates_num = std::max<int>(pstates_num, all_cpus[i]->pstates.size());
+	}
+
+	if (state == PSTATE) {
 		win = get_ncurses_win("Frequency stats");
-	else
+		loop = pstates_num;
+	} else {
 		win = get_ncurses_win("Idle stats");
+		loop = cstates_num;
+	}
 
 	if (!win)
 		return;
@@ -810,8 +743,10 @@ void impl_w_display_cpu_states(int state)
 			_core = _package->children[core];
 			if (!_core)
 				continue;
+			if (!_core->has_pstates() && state == PSTATE)
+				continue;
 
-			for (line = LEVEL_HEADER; line < 10; line++) {
+			for (line = LEVEL_HEADER; line <= loop; line++) {
 				int first = 1;
 				ctr = 0;
 				linebuf[0] = 0;
@@ -867,7 +802,6 @@ void impl_w_display_cpu_states(int state)
 			first_pkg++;
 		}
 	}
-#endif // DISABLE_NCURSES
 }
 
 void w_display_cpu_pstates(void)
@@ -892,7 +826,7 @@ struct power_entry {
 void perf_power_bundle::handle_trace_point(void *trace, int cpunr, uint64_t time)
 {
 	struct event_format *event;
-        struct record rec; /* holder */
+        struct pevent_record rec; /* holder */
 	class abstract_cpu *cpu;
 	int type;
 
@@ -924,7 +858,7 @@ void perf_power_bundle::handle_trace_point(void *trace, int cpunr, uint64_t time
 
 		ret = pevent_get_field_val(NULL, event, "state", &rec, &val, 0);
                 if (ret < 0) {
-                        fprintf(stderr, "cpu_idle event returned no state?\n");
+                        fprintf(stderr, _("cpu_idle event returned no state?\n"));
                         exit(-1);
                 }
 
@@ -934,12 +868,12 @@ void perf_power_bundle::handle_trace_point(void *trace, int cpunr, uint64_t time
 			cpu->go_idle(time);
 	}
 
-	if (strcmp(event->name, "power_frequency") == 0 
+	if (strcmp(event->name, "power_frequency") == 0
 	|| strcmp(event->name, "cpu_frequency") == 0){
 
 		ret = pevent_get_field_val(NULL, event, "state", &rec, &val, 0);
 		if (ret < 0) {
-			fprintf(stderr, "power or cpu_frequecny event returned no state?\n");
+			fprintf(stderr, _("power or cpu_frequency event returned no state?\n"));
 			exit(-1);
 		}
 

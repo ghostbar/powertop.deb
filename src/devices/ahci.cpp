@@ -115,9 +115,11 @@ ahci::ahci(char *_name, char *path): device()
 
 	end_active = 0;
 	end_slumber = 0;
+	end_devslp = 0;
 	end_partial = 0;
 	start_active = 0;
 	start_slumber = 0;
+	start_devslp = 0;
 	start_partial = 0;
 	strncpy(sysfs_path, path, sizeof(sysfs_path));
 
@@ -165,15 +167,19 @@ void ahci::start_measurement(void)
 		sprintf(filename, "%s/ahci_alpm_slumber", sysfs_path);
 		file.open(filename, ios::in);
 		if (file) {
-				file >> start_slumber;
+			file >> start_slumber;
+		}
+		file.close();
+		sprintf(filename, "%s/ahci_alpm_devslp", sysfs_path);
+		file.open(filename, ios::in);
+		if (file) {
+			file >> start_devslp;
 		}
 		file.close();
 	}
-#ifndef DISABLE_TRYCATCH
 	catch (std::ios_base::failure &c) {
 		fprintf(stderr, "%s\n", c.what());
 	}
-#endif
 
 }
 
@@ -203,16 +209,20 @@ void ahci::end_measurement(void)
 			file >> end_slumber;
 		}
 		file.close();
+		sprintf(filename, "%s/ahci_alpm_devslp", sysfs_path);
+		file.open(filename, ios::in);
+		if (file) {
+			file >> end_devslp;
+		}
+		file.close();
 	}
-#ifndef DISABLE_TRYCATCH
 	catch (std::ios_base::failure &c) {
 		fprintf(stderr, "%s\n", c.what());
 	}
-#endif
 	if (end_active < start_active)
 		end_active = start_active;
 
-	p = (end_active - start_active) / (0.001 + end_active + end_partial + end_slumber - start_active - start_partial - start_slumber) * 100.0;
+	p = (end_active - start_active) / (0.001 + end_active + end_partial + end_slumber + end_devslp - start_active - start_partial - start_slumber - start_devslp) * 100.0;
 	if (p < 0)
 		 p = 0;
 	sprintf(powername, "%s-active", name);
@@ -221,7 +231,7 @@ void ahci::end_measurement(void)
 	if (end_partial < start_partial)
 		end_partial = start_partial;
 
-	p = (end_partial - start_partial) / (0.001 + end_active + end_partial + end_slumber - start_active - start_partial - start_slumber) * 100.0;
+	p = (end_partial - start_partial) / (0.001 + end_active + end_partial + end_slumber + end_devslp - start_active - start_partial - start_slumber - start_devslp) * 100.0;
 	if (p < 0)
 		 p = 0;
 	sprintf(powername, "%s-partial", name);
@@ -233,7 +243,7 @@ double ahci::utilization(void)
 {
 	double p;
 
-	p = (end_partial - start_partial + end_active - start_active) / (0.001 + end_active + end_partial + end_slumber - start_active - start_partial - start_slumber) * 100.0;
+	p = (end_partial - start_partial + end_active - start_active) / (0.001 + end_active + end_partial + end_slumber + end_devslp - start_active - start_partial - start_slumber - start_devslp) * 100.0;
 
 	if (p < 0)
 		p = 0;
@@ -258,12 +268,20 @@ void create_all_ahcis(void)
 	while (1) {
 		class ahci *bl;
 		ofstream file;
+		ifstream check_file;
 		entry = readdir(dir);
 		if (!entry)
 			break;
 		if (entry->d_name[0] == '.')
 			continue;
 		sprintf(filename, "/sys/class/scsi_host/%s/ahci_alpm_accounting", entry->d_name);
+
+		check_file.open(filename, ios::in);
+		check_file.get();
+		check_file.close();
+		if (check_file.bad())
+			continue;
+		
 		file.open(filename, ios::in);
 		if (!file)
 			continue;

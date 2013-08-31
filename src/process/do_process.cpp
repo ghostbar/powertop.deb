@@ -28,7 +28,8 @@
 #include "work.h"
 #include "processdevice.h"
 #include "../lib.h"
-#include "../report.h"
+#include "../report/report.h"
+#include "../report/report-maker.h"
 #include "../devlist.h"
 
 #include <vector>
@@ -186,19 +187,6 @@ int dont_blame_me(char *comm)
 	return 0;
 }
 
-static void dbg_printf_pevent_info(struct event_format *event, struct record *rec)
-{
-	static struct trace_seq s;
-
-	event->pevent->print_raw = 1;
-	trace_seq_init(&s);
-	pevent_event_info(&s, event, rec);
-	trace_seq_putc(&s, '\n');
-	trace_seq_terminate(&s);
-	fprintf(stderr, "%.*s", s.len, s.buffer);
-	trace_seq_destroy(&s);
-}
-
 static char * get_pevent_field_str(void *trace, struct event_format *event, struct format_field *field)
 {
 	unsigned long long offset, len;
@@ -216,7 +204,7 @@ static char * get_pevent_field_str(void *trace, struct event_format *event, stru
 void perf_process_bundle::handle_trace_point(void *trace, int cpu, uint64_t time)
 {
 	struct event_format *event;
-	struct record rec; /* holder */
+	struct pevent_record rec; /* holder */
 	struct format_field *field;
 	unsigned long long val;
 	int type;
@@ -312,7 +300,7 @@ void perf_process_bundle::handle_trace_point(void *trace, int cpu, uint64_t time
 		int flags;
 		int pid;
 
-		ret = pevent_get_common_field_val(NULL, event, "flags", &rec, &val, 0);
+		ret = pevent_get_common_field_val(NULL, event, "common_flags", &rec, &val, 0);
 		if (ret < 0)
 			return;
 		flags = (int)val;
@@ -451,7 +439,7 @@ void perf_process_bundle::handle_trace_point(void *trace, int cpu, uint64_t time
 
 		ret = pevent_get_field_val(NULL, event, "function", &rec, &val, 0);
 		if (ret < 0) {
-			fprintf(stderr, "timer_expire_entry event returned no fucntion value?\n");
+			fprintf(stderr, "timer_expire_entry event returned no function value?\n");
 			return;
 		}
 		function = (uint64_t)val;
@@ -490,6 +478,10 @@ void perf_process_bundle::handle_trace_point(void *trace, int cpu, uint64_t time
 		}
 		pop_consumer(cpu);
 		t = timer->done(time, tmr);
+		if (t == ~0ULL) {
+			timer->fire(first_stamp, tmr);
+			t = timer->done(time, tmr);
+		}
 		consumer_child_time(cpu, t);
 	}
 	else if (strcmp(event->name, "hrtimer_expire_entry") == 0) {
@@ -532,6 +524,10 @@ void perf_process_bundle::handle_trace_point(void *trace, int cpu, uint64_t time
 
 		pop_consumer(cpu);
 		t = timer->done(time, tmr);
+		if (t == ~0ULL) {
+			timer->fire(first_stamp, tmr);
+			t = timer->done(time, tmr);
+		}
 		consumer_child_time(cpu, t);
 	}
 	else if (strcmp(event->name, "workqueue_execute_start") == 0) {
@@ -575,6 +571,10 @@ void perf_process_bundle::handle_trace_point(void *trace, int cpu, uint64_t time
 		}
 		pop_consumer(cpu);
 		t = work->done(time, wk);
+		if (t == ~0ULL) {
+			work->fire(first_stamp, wk);
+			t = work->done(time, wk);
+		}
 		consumer_child_time(cpu, t);
 	}
 	else if (strcmp(event->name, "cpu_idle") == 0) {
@@ -597,7 +597,7 @@ void perf_process_bundle::handle_trace_point(void *trace, int cpu, uint64_t time
 		class power_consumer *consumer = NULL;
 		int flags;
 
-		ret = pevent_get_common_field_val(NULL, event, "flags", &rec, &val, 0);
+		ret = pevent_get_common_field_val(NULL, event, "common_flags", &rec, &val, 0);
 		if (ret < 0)
 			return;
 		flags = (int)val;
@@ -663,8 +663,8 @@ void start_process_measurement(void)
 		perf_events->add_event("irq:softirq_exit");
 		perf_events->add_event("timer:timer_expire_entry");
 		perf_events->add_event("timer:timer_expire_exit");
-		perf_events->add_event("hrtimer_expire_entry");
-		perf_events->add_event("hrtimer_expire_exit");
+		perf_events->add_event("timer:hrtimer_expire_entry");
+		perf_events->add_event("timer:hrtimer_expire_exit");
 		if (!perf_events->add_event("power:cpu_idle")){
 			perf_events->add_event("power:power_start");
 			perf_events->add_event("power:power_end");
@@ -783,11 +783,12 @@ double total_xwakes(void)
 
 void process_update_display(void)
 {
-#ifndef DISABLE_NCURSES
 	unsigned int i;
 	WINDOW *win;
 	double pw;
 	int tl;
+	int tlt; 
+	int tlr;
 
 	int show_power;
 	int need_linebreak = 0;
@@ -819,6 +820,9 @@ void process_update_display(void)
 
 	pw = global_joules_consumed();
 	tl = global_time_left() / 60;
+	tlt = (tl /60);
+	tlr = tl % 60;
+
 	if (pw > 0.0001) {
 		char buf[32];
 		wprintw(win, _("The battery reports a discharge rate of %sW\n"),
@@ -826,7 +830,7 @@ void process_update_display(void)
 		need_linebreak = 1;
 	}
 	if (tl > 0 && pw > 0.0001) {
-		wprintw(win, _("The estimated remaining time is %i minutes\n"), tl);
+		wprintw(win, _("The estimated remaining time is %i hours, %i minutes\n"), tlt, tlr);
 		need_linebreak = 1;
 	}
 
@@ -834,14 +838,13 @@ void process_update_display(void)
 		wprintw(win, "\n");
 
 
-	wprintw(win, "Summary: %3.1f wakeups/second,  %3.1f GPU ops/second, %3.1f VFS ops/sec and %3.1f%% CPU use\n\n",
-		total_wakeups(), total_gpu_ops(), total_disk_hits(), total_cpu_time()*100);
+	wprintw(win, "%s: %3.1f %s,  %3.1f %s, %3.1f %s %3.1f%% %s\n\n",_("Summary"), total_wakeups(), _("wakeups/second"), total_gpu_ops(), _("GPU ops/seconds"), total_disk_hits(), _("VFS ops/sec and"), total_cpu_time()*100, _("CPU use"));
 
 
 	if (show_power)
-		wprintw(win, _("Power est.      Usage       Events/s    Category       Description\n"));
+		wprintw(win, "%s              %s       %s    %s       %s\n", _("Power est."), _("Usage"), _("Events/s"), _("Category"), _("Description"));
 	else
-		wprintw(win, _("                Usage       Events/s    Category       Description\n"));
+		wprintw(win, "                %s       %s    %s       %s\n", _("Usage"), _("Events/s"), _("Category"), _("Description"));
 
 	for (i = 0; i < all_power.size(); i++) {
 		char power[16];
@@ -877,49 +880,42 @@ void process_update_display(void)
 		while (strlen(events) < 12) strcat(events, " ");
 		wprintw(win, "%s  %s %s %s %s\n", power, usage, events, name, pretty_print(all_power[i]->description(), descr, 128));
 	}
-#endif // DISABLE_NCURSES
-}
-
-static const char *process_class(int line)
-{
-	if (line & 1) {
-		return "process_odd";
-	}
-	return "process_even";
 }
 
 void report_process_update_display(void)
 {
-	unsigned int i, lines = 0;
+	unsigned int i;
 	unsigned int total;
 
 	int show_power;
-
-	if ((!reportout.csv_report)&&(!reportout.http_report))
-		return;
 
 	sort(all_power.begin(), all_power.end(), power_cpu_sort);
 
 	show_power = global_power_valid();
 
-	if (reporttype){
-		fprintf(reportout.http_report,
-			"<div id=\"software\"><h2>Overview of Software Power Consumers</h2>\n <table width=\"100%%\">\n");
-		if (show_power)
-			fprintf(reportout.http_report,
-				"<tr><th width=\"10%%\">Power est.</th><th width=\"10%%\">Usage</th><th width=\"10%%\">Wakeups/s</th><th width=\"10%%\">GPU ops/s</th><th width=\"10%%\">Disk IO/s</th><th width=\"10%%\">GFX Wakeups/s</th><th width=\"10%%\" class=\"process\">Category</th><th class=\"process\">Description</th></tr>\n");
-		else
-			fprintf(reportout.http_report,
-				"<tr><th width=\"10%%\">Usage</th><th width=\"10%%\">Wakeups/s</th><th width=\"10%%\">GPU ops/s</th><th width=\"10%%\">Disk IO/s</th><th width=\"10%%\">GFX Wakeups/s</th><th width=\"10%%\" class=\"process\">Category</th><th class=\"process\">Description</th></tr>\n");
-	}else {
-		fprintf(reportout.csv_report,"**Overview of Software Power Consumers**, \n\n");
-		if (show_power)
-			fprintf(reportout.csv_report,
-				"Power est., Usage, Wakeups, GPU ops, Disk IO, GFX Wakeups, Category, Description, \n");
-		else
-			fprintf(reportout.csv_report,
-				"Usage,  Wakeups, GPU ops, Disk IO, GFX Wakeups, Category, Description, \n");
+	report.begin_section(SECTION_SOFTWARE);
+	report.add_header(__("Overview of Software Power Consumers"));
+	report.begin_table(TABLE_WIDE);
+	report.begin_row();
+	if (show_power) {
+		report.begin_cell(CELL_SOFTWARE_HEADER);
+		report.add(__("Power est."));
 	}
+
+	report.begin_cell(CELL_SOFTWARE_HEADER);
+	report.add(__("Usage"));
+	report.begin_cell(CELL_SOFTWARE_HEADER);
+	report.add(__("Wakeups/s"));
+	report.begin_cell(CELL_SOFTWARE_HEADER);
+	report.add(__("GPU ops/s"));
+	report.begin_cell(CELL_SOFTWARE_HEADER);
+	report.add(__("Disk IO/s"));
+	report.begin_cell(CELL_SOFTWARE_HEADER);
+	report.add(__("GFX Wakeups/s"));
+	report.begin_cell(CELL_SOFTWARE_PROCESS);
+	report.add(__("Category"));
+	report.begin_cell(CELL_SOFTWARE_DESCRIPTION);
+	report.add(__("Description"));
 
 	total = all_power.size();
 
@@ -937,15 +933,12 @@ void report_process_update_display(void)
 		char descr[128];
 		format_watts(all_power[i]->Witts(), power, 10);
 
-
 		if (!show_power)
 			strcpy(power, "          ");
 		sprintf(name, "%s", all_power[i]->type());
 
 		if (strcmp(name, "Device") == 0)
 			continue;
-
-		lines++;
 
 		if (all_power[i]->events() == 0 && all_power[i]->usage() == 0 && all_power[i]->Witts() == 0)
 			break;
@@ -961,7 +954,8 @@ void report_process_update_display(void)
 		if (all_power[i]->wake_ups / measurement_time <= 0.3)
 			sprintf(wakes, "%5.2f", all_power[i]->wake_ups / measurement_time);
 		sprintf(gpus, "%5.1f", all_power[i]->gpu_ops / measurement_time);
-		sprintf(disks, "%5.1f (%5.1f)", all_power[i]->hard_disk_hits / measurement_time, all_power[i]->disk_hits / measurement_time);
+		sprintf(disks, "%5.1f (%5.1f)", all_power[i]->hard_disk_hits / measurement_time,
+			all_power[i]->disk_hits / measurement_time);
 		sprintf(xwakes, "%5.1f", all_power[i]->xwakes / measurement_time);
 		if (!all_power[i]->show_events()) {
 			wakes[0] = 0;
@@ -978,72 +972,64 @@ void report_process_update_display(void)
 		if (all_power[i]->xwakes == 0)
 			xwakes[0] = 0;
 
+		report.begin_row(ROW_SOFTWARE);
 		if (show_power) {
-			if (reporttype)
-				fprintf(reportout.http_report,"<tr class=\"%s\"><td class=\"process_power\">%s</td><td class=\"process_power\">%s</td><td class=\"process_power\">%s</td><td class=\"process_power\">%s</td><td class=\"process_power\">%s</td></td><td class=\"process_power\">%s</td><td>%s</td><td>%s</td></tr>\n",
-					process_class(lines), power, usage, wakes, gpus, disks, xwakes, name, pretty_print(all_power[i]->description(), descr, 128));
-			else
-				fprintf(reportout.csv_report,"%s, %s, %s, %s, %s, %s, %s, %s,\n",
-					power, usage, wakes, gpus, disks, xwakes, name,
-					pretty_print(all_power[i]->description(), descr, 128));
-
-		} else {
-			if (reporttype)
-				fprintf(reportout.http_report,"<tr class=\"%s\"><td class=\"process_power\">%s</td><td class=\"process_power\">%s</td><td class=\"process_power\">%s</td><td class=\"process_power\">%s</td><td class=\"process_power\">%s</td><td>%s</td><td>%s</td></tr>\n",
-					process_class(lines), usage, wakes, gpus, disks, xwakes, name, pretty_print(all_power[i]->description(), descr, 128));
-			else
-				fprintf(reportout.csv_report,"%s, %s, %s, %s, %s, %s, %s, \n",
-					usage, wakes, gpus, disks, xwakes, name,
-					pretty_print(all_power[i]->description(), descr, 128));
+			report.begin_cell(CELL_SOFTWARE_POWER);
+			report.add(power);
 		}
+		
+		report.begin_cell(CELL_SOFTWARE_POWER);
+		report.add(usage);
+		report.begin_cell(CELL_SOFTWARE_POWER);
+		report.add(wakes);
+		report.begin_cell(CELL_SOFTWARE_POWER);
+		report.add(gpus);
+		report.begin_cell(CELL_SOFTWARE_POWER);
+		report.add(disks);
+		report.begin_cell(CELL_SOFTWARE_POWER);
+		report.add(xwakes);
+		report.begin_cell();
+		report.add(name);
+		report.begin_cell();
+		report.add(pretty_print(all_power[i]->description(), descr, 128));
 	}
-	if (reporttype)
-		fprintf(reportout.http_report,"</table></div>\n");
-	else
-		fprintf(reportout.csv_report,"\n");
 }
 
 void report_summary(void)
 {
-	unsigned int i, lines = 0;
+	unsigned int i;
 	unsigned int total;
-
 	int show_power;
 
-	if ((!reportout.csv_report)&&(!reportout.http_report))
-		return;
-
 	sort(all_power.begin(), all_power.end(), power_cpu_sort);
-
 	show_power = global_power_valid();
 
-	if (reporttype) {
-		fprintf(reportout.http_report,
-			"<div id=\"summary\"><h2>Power Consumption Summary</h2>\n");
-		fprintf(reportout.http_report,
-			"<p>%3.1f wakeups/second,  %3.1f GPU ops/second, %3.1f VFS ops/sec, %3.1f GFX wakes/sec and %3.1f%% CPU use</p>\n <table width=\"100%%\">\n",
-			total_wakeups(), total_gpu_ops(), total_disk_hits(), total_xwakes(), total_cpu_time()*100);
+	report.begin_section(SECTION_SUMMARY);
+	report.add_header(__("Power Consumption Summary"));
+	report.begin_paragraph();
+	report.addf("%.1f %s, %.1f %s, %.1f %s, %.1f %s %.1f%% %s",
+		    total_wakeups(),	 __("wakeups/second"),
+		    total_gpu_ops(),	 __("GPU ops/second"),
+		    total_disk_hits(),	 __("VFS ops/sec"),
+		    total_xwakes(),	 __("GFX wakes/sec and"),
+		    total_cpu_time() * 100, __("CPU use"));
 
-		if (show_power)
-			fprintf(reportout.http_report,
-		"<tr><th width=\"10%%\">Power est.</th><th width=\"10%%\">Usage</th><th width=\"10%%\">Events/s</th><th width=\"10%%\" class=\"process\">Category</th><th class=\"process\">Description</th></tr>\n");
-		else
-		fprintf(reportout.http_report,
-		"<tr><th width=\"10%%\">Usage</th><th width=\"10%%\">Events/s</th><th width=\"10%%\" class=\"process\">Category</th><th class=\"process\">Description</th></tr>\n");
-
-	}else {
-		fprintf(reportout.csv_report,
-			"**Power Consumption Summary** \n");
-		fprintf(reportout.csv_report,
-			"%3.1f wakeups/second,  %3.1f GPU ops/second, %3.1f VFS ops/sec, %3.1f GFX wakes/sec and %3.1f%% CPU use \n\n",
-			total_wakeups(), total_gpu_ops(), total_disk_hits(), total_xwakes(), total_cpu_time()*100);
-
-		if (show_power)
-			fprintf(reportout.csv_report,"Power est., Usage, Events/s, Category,  Description, \n");
-        else
-			fprintf(reportout.csv_report,"Usage, Events/s, Category, Description, \n");
-
+	report.begin_table(TABLE_WIDE);
+	report.begin_row();
+	if (show_power) {
+		report.begin_cell(CELL_SUMMARY_HEADER);
+		report.add(__("Power est."));
 	}
+
+	report.begin_cell(CELL_SUMMARY_HEADER);
+	report.add(__("Usage"));
+	report.begin_cell(CELL_SUMMARY_HEADER);
+	report.add(__("Events/s"));
+	report.begin_cell(CELL_SUMMARY_CATEGORY);
+	report.add(__("Category"));
+	report.begin_cell(CELL_SUMMARY_DESCRIPTION);
+	report.add(__("Description"));
+
 	total = all_power.size();
 	if (total > 10)
 		total = 10;
@@ -1056,25 +1042,25 @@ void report_summary(void)
 		char descr[128];
 		format_watts(all_power[i]->Witts(), power, 10);
 
-
 		if (!show_power)
 			strcpy(power, "          ");
 		sprintf(name, "%s", all_power[i]->type());
 
-		lines++;
-
-		if (lines > total)
+		if (i > total)
 			break;
 
-		if (all_power[i]->events() == 0 && all_power[i]->usage() == 0 && all_power[i]->Witts() == 0)
+		if (all_power[i]->events() == 0 && all_power[i]->usage() == 0 &&
+		    all_power[i]->Witts() == 0)
 			break;
 
 		usage[0] = 0;
 		if (all_power[i]->usage_units()) {
 			if (all_power[i]->usage() < 1000)
-				sprintf(usage, "%5.1f%s", all_power[i]->usage_summary(), all_power[i]->usage_units_summary());
+				sprintf(usage, "%5.1f%s", all_power[i]->usage_summary(),
+					all_power[i]->usage_units_summary());
 			else
-				sprintf(usage, "%5i%s", (int)all_power[i]->usage_summary(), all_power[i]->usage_units_summary());
+				sprintf(usage, "%5i%s", (int)all_power[i]->usage_summary(),
+					all_power[i]->usage_units_summary());
 		}
 		sprintf(events, "%5.1f", all_power[i]->events());
 		if (!all_power[i]->show_events())
@@ -1082,27 +1068,21 @@ void report_summary(void)
 		else if (all_power[i]->events() <= 0.3)
 			sprintf(events, "%5.2f", all_power[i]->events());
 
+		report.begin_row(ROW_SUMMARY);
 		if (show_power) {
-			if (reporttype)
-				fprintf(reportout.http_report,"<tr class=\"%s\"><td class=\"process_power\">%s</td><td class=\"process_power\">%s</td><td class=\"process_power\">%s</td><td>%s</td><td>%s</td></tr>\n",
-					process_class(lines), power, usage, events, name, pretty_print(all_power[i]->description(), descr, 128));
-			else
-				fprintf(reportout.csv_report,"%s,%s,%s,%s,%s \n",
-					power, usage, events, name, pretty_print(all_power[i]->description(), descr, 128));
-		} else {
-			if (reporttype)
-				fprintf(reportout.http_report,
-					"<tr class=\"%s\"><td class=\"process_power\">%s</td><td class=\"process_power\">%s</td><td>%s</td><td>%s</td></tr>\n",
-					process_class(lines),usage, events, name, pretty_print(all_power[i]->description(), descr, 128));
-			else
-				fprintf(reportout.csv_report,"%s,%s,%s,%s, \n",
-					usage, events, name, pretty_print(all_power[i]->description(), descr, 128));
+			report.begin_cell(CELL_SUMMARY_ITEM);
+			report.add(power);
 		}
+
+		report.begin_cell(CELL_SUMMARY_ITEM);
+		report.add(usage);
+		report.begin_cell(CELL_SUMMARY_ITEM);
+		report.add(events);
+		report.begin_cell();
+		report.add(name);
+		report.begin_cell();
+		report.add(pretty_print(all_power[i]->description(), descr, 128));
 	}
-	if (reporttype)
-		fprintf(reportout.http_report,"</table></div>\n");
-	else
-		fprintf(reportout.csv_report,"\n");
 }
 
 
@@ -1189,3 +1169,4 @@ void clear_process_data(void)
 		perf_events->release();
 	delete perf_events;
 }
+

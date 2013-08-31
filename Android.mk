@@ -5,12 +5,11 @@ LOCAL_MODULE_TAGS := debug
 LOCAL_SHARED_LIBRARIES := libstlport \
 			  libnl \
 			  libpci \
-			  libparseevent \
+			  libtraceevnet \
 LOCAL_MODULE := powertop  
 
 #LOCAL_CFLAGS += -Wall -O2 -g -fno-omit-frame-pointer -fstack-protector -Wshadow -Wformat -D_FORTIFY_SOURCE=2
 #LOCAL_CPPFLAGS += -Wall -O2 -g -fno-omit-frame-pointer
-LOCAL_CPPFLAGS += -DDISABLE_NCURSES -DDISABLE_I18N -DDISABLE_TRYCATCH
 
 LOCAL_C_INCLUDES += external/stlport/stlport/ external/stlport/stlport/stl external/stlport/stlport/using/h/  bionic external/libnl/include/
 
@@ -66,12 +65,11 @@ LOCAL_SRC_FILES += \
 	src/devlist.cpp \
 	src/calibrate/calibrate.cpp \
 	src/lib.cpp \
-	pevent/parse-events.c \
-	pevent/parse-filter.c \
-	pevent/trace-seq.c \
-	pevent/parse-events.h \
-	pevent/parse-utils.c \
-	pevent/util.h
-
+	traceevent/event-parse.c \
+	traceevent/event-parse.h \
+	traceevent/event-utils.h \
+	traceevent/parse-filter.c \
+	traceevent/parse-utils.c \
+	traceevent/trace-seq.c
 
 include $(BUILD_EXECUTABLE)

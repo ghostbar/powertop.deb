@@ -41,18 +41,34 @@ extern void show_prev_tab(void);
 extern void show_cur_tab(void);
 extern void cursor_up(void);
 extern void cursor_down(void);
+extern void cursor_right(void);
+extern void cursor_left(void);
 extern void cursor_enter(void);
 extern void window_refresh(void);
 
-#ifndef DISABLE_NCURSES
 class tab_window {
 public:
 	int cursor_pos;
 	int cursor_max;
+	short int xpad_pos, ypad_pos; 
 	WINDOW *win;
 
-	virtual void cursor_down(void) { if (cursor_pos < cursor_max ) cursor_pos++; repaint(); } ;
-	virtual void cursor_up(void) { if (cursor_pos > 0) cursor_pos--; repaint(); };
+	tab_window() {
+		cursor_pos = 0;
+		cursor_max = 0;
+		xpad_pos =0;
+		ypad_pos = 0;
+		win = NULL;
+	}
+
+	virtual void cursor_down(void) { 
+		if (cursor_pos < cursor_max ) cursor_pos++; repaint(); 
+	} ;
+	virtual void cursor_up(void) { 
+		if (cursor_pos > 0) cursor_pos--; repaint(); 
+	};
+	virtual void cursor_left(void) { };
+	virtual void cursor_right(void) { };
 
 	virtual void cursor_enter(void) { };
 	virtual void window_refresh() { };
@@ -61,7 +77,7 @@ public:
 	virtual void expose(void) { cursor_pos = 0; repaint();};
 	virtual void hide(void) { };
 
-	virtual ~tab_window() 
+	virtual ~tab_window()
 	{
 		delwin(win);
 		win = NULL;
@@ -73,7 +89,6 @@ extern map<string, class tab_window *> tab_windows;
 WINDOW *get_ncurses_win(const char *name);
 WINDOW *get_ncurses_win(const string &name);
 WINDOW *get_ncurses_win(int nr);
-#endif /* DISABLE_NCURSES */
 
 void create_tab(const string &name, const string &translation, class tab_window *w = NULL, string bottom_line = "");
 
