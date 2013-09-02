@@ -10,7 +10,7 @@ Vcs-browser: https://github.com/ghostbar/powertop.deb
 Homepage: https://01.org/powertop/
 
 Package: powertop
-Architecture: any
+Architecture: linux-any
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Suggests: cpufrequtils, laptop-mode-tools
 Description: Linux tool to find out what is using power on a laptop
