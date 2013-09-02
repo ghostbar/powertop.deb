@@ -1,3 +1,12 @@
 #!/usr/bin/make -f
 %:
 	dh $@
+
+override_dh_strip:
+	dh_strip --dbg-package=powertop-dbg
+
+override_dh_auto_install:
+	dh_auto_install --destdir=debian/powertop
+
+override_dh_installdocs:
+	dh_installdocs --link-doc=powertop
