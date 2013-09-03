@@ -1,4 +1,4 @@
-powertop (2.4-2) UNRELEASED; urgency=low
+powertop (2.4-2) unstable; urgency=low
 
   * debian/copyright: Add missing copyright notices.
   * Add myself as co-maintainer.
