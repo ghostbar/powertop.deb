@@ -10,7 +10,7 @@ Vcs-browser: https://github.com/ghostbar/powertop.deb
 Homepage: https://01.org/powertop/
 
 Package: powertop
-Architecture: linux-any
+Architecture: alpha amd64 armel armhf hppa i386 m68k mips mipsel powerpc powerpcspe ppc64 s390 s390x sh4 sparc sparc64 x32
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Suggests: cpufrequtils, laptop-mode-tools
 Description: diagnose issues with power consumption and management
@@ -26,7 +26,7 @@ Description: diagnose issues with power consumption and management
  available for CPU C and P states, device activity, and software activity.
 
 Package: powertop-dbg
-Architecture: linux-any
+Architecture: alpha amd64 armel armhf hppa i386 m68k mips mipsel powerpc powerpcspe ppc64 s390 s390x sh4 sparc sparc64 x32
 Section: debug
 Depends: powertop (=${binary:Version}), ${misc:Depends}
 Description: debugging symbols for powertop
