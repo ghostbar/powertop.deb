@@ -1,3 +1,9 @@
+powertop (2.4-3) UNRELEASED; urgency=low
+
+  * Only build for supported architectures.
+
+ -- Julian Wollrath <jwollrath@web.de>  Fri, 06 Sep 2013 11:35:03 -0400
+
 powertop (2.4-2) unstable; urgency=low
 
   * debian/copyright: Add missing copyright notices.
