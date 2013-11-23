@@ -3,8 +3,8 @@ Section: utils
 Priority: extra
 Maintainer: Jose Luis Rivas <ghostbar@debian.org>
 Uploaders: Patrick Winnertz <winnie@debian.org>, Julian Wollrath <jwollrath@web.de>
-Build-Depends: debhelper (>= 9), libncurses5-dev, libncursesw5-dev, libnl-3-dev, libnl-genl-3-dev, libpci-dev, pkg-config, automake
 Standards-Version: 3.9.4
+Build-Depends: automake, debhelper (>= 9), dh-autoreconf, libncurses5-dev, libncursesw5-dev, libnl-3-dev, libnl-genl-3-dev, libpci-dev, pkg-config
 Vcs-git: git://github.com/ghostbar/powertop.deb.git
 Vcs-browser: https://github.com/ghostbar/powertop.deb
 Homepage: https://01.org/powertop/
