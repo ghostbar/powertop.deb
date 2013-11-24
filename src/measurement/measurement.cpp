@@ -25,7 +25,6 @@
 #include "measurement.h"
 #include "acpi.h"
 #include "extech.h"
-#include "power_supply.h"
 #include "sysfs.h"
 #include "../parameters/parameters.h"
 #include "../lib.h"
@@ -54,23 +53,6 @@ double power_meter::joules_consumed(void)
 	return 0.0;
 }
 
-double power_meter::time_left(void)
-{
-	double cap, rate;
-
-	cap = dev_capacity();
-	rate = joules_consumed();
-
-	if (cap < 0.001)
-		return 0.0;
-
-	/* return 0.0 instead of INF+ */
-	if (rate < 0.001)
-		return 0.0;
-
-	return cap / rate;
-}
-
 vector<class power_meter *> power_meters;
 
 void start_power_measurement(void)
@@ -88,10 +70,17 @@ void end_power_measurement(void)
 
 double global_joules_consumed(void)
 {
+	bool global_discharging = false;
 	double total = 0.0;
 	unsigned int i;
-	for (i = 0; i < power_meters.size(); i++)
+
+	for (i = 0; i < power_meters.size(); i++) {
+		global_discharging |= power_meters[i]->is_discharging();
 		total += power_meters[i]->joules_consumed();
+	}
+	/* report global time left if at least one battery is discharging */
+	if (!global_discharging)
+		return 0.0;
 
 	all_results.power = total;
 	if (total < min_power && total > 0.01)
@@ -101,13 +90,19 @@ double global_joules_consumed(void)
 
 double global_time_left(void)
 {
+	bool global_discharging = false;
 	double total_capacity = 0.0;
 	double total_rate = 0.0;
 	unsigned int i;
 	for (i = 0; i < power_meters.size(); i++) {
+		global_discharging |= power_meters[i]->is_discharging();
 		total_capacity += power_meters[i]->dev_capacity();
 		total_rate += power_meters[i]->joules_consumed();
 	}
+	/* report global time left if at least one battery is discharging */
+	if (!global_discharging)
+		return 0.0;
+
 	/* return 0.0 instead of INF+ */
 	if (total_rate < 0.001)
 		return 0.0;
@@ -133,35 +128,6 @@ void acpi_power_meters_callback(const char *d_name)
 	meter = new(std::nothrow) class acpi_power_meter(d_name);
 	if (meter)
 		power_meters.push_back(meter);
-}
-
-void power_supply_callback(const char *d_name)
-{
-	char filename[4096];
-	char line[4096];
-	ifstream file;
-	bool discharging = false;
-
-	sprintf(filename, "/sys/class/power_supply/%s/uevent", d_name);
-	file.open(filename, ios::in);
-	if (!file)
-		return;
-
-	while (file) {
-		file.getline(line, 4096);
-
-		if (strstr(line, "POWER_SUPPLY_STATUS") && strstr(line, "Discharging"))
-		      discharging = true;
-	}
-	file.close();
-
-	if (!discharging)
-	    return;
-
-	class power_supply *power;
-	power = new(std::nothrow) class power_supply(d_name);
-	if (power)
-		power_meters.push_back(power);
 }
 
 void detect_power_meters(void)

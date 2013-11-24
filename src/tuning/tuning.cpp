@@ -141,11 +141,15 @@ void tuning_window::repaint(void)
 void tuning_window::cursor_enter(void)
 {
 	class tunable *tun;
-
+	const char *toggle_script;
 	tun = all_tunables[cursor_pos];
 	if (!tun)
 		return;
+	/** device will change its state so need to store toggle script before
+	 * we toggle()*/
+	toggle_script = tun->toggle_script();
 	tun->toggle();
+	ui_notify_user(">> %s\n", toggle_script);
 }
 
 static bool tunables_sort(class tunable * i, class tunable * j)
@@ -272,4 +276,12 @@ void clear_tuning()
 		delete all_untunables[i];
 	}
 	all_untunables.clear();
+}
+
+void auto_toggle_tuning()
+{
+	for (unsigned int i = 0; i < all_tunables.size(); i++) {
+		if (all_tunables[i]->good_bad() == TUNE_BAD)
+			all_tunables[i]->toggle();
+	}
 }

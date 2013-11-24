@@ -28,6 +28,7 @@
  *	Arjan van de Ven <arjan@linux.intel.com>
  */
 #include <iostream>
+#include <fstream>
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
@@ -36,6 +37,7 @@
 #include <getopt.h>
 #include <unistd.h>
 #include <locale.h>
+#include <sys/resource.h>
 
 #include "cpu/cpu.h"
 #include "process/process.h"
@@ -60,6 +62,8 @@
 
 #define DEBUGFS_MAGIC          0x64626720
 
+#define NR_OPEN_DEF 1024 * 1024
+
 int debug_learning = 0;
 unsigned time_out = 20;
 int leave_powertop = 0;
@@ -71,6 +75,7 @@ static const struct option long_options[] =
 	{"version", no_argument, NULL, 'V'},
 	{"help",no_argument, NULL, 'u'}, /* u for usage */
 	{"calibrate",no_argument, NULL, 'c'},
+	{"auto-tune",no_argument, NULL, 'a'},
 	{"html", optional_argument, NULL, 'h'},
 	{"csv", optional_argument, NULL, 'C'},
 	{"extech", optional_argument, NULL, 'e'},
@@ -106,6 +111,7 @@ static void print_usage()
 	printf("--debug \t\t %s\n",_("run in \"debug\" mode"));
 	printf("--version \t\t %s\n",_("print version information"));
 	printf("--calibrate \t\t %s\n",_("runs powertop in calibration mode"));
+	printf("--auto-tune \t\t %s\n",_("Sets all tunable options to their GOOD setting"));
 	printf("--extech%s \t %s\n",_("[=devnode]"),_("uses an Extech Power Analyzer for measurements"));
 	printf("--html%s \t %s\n",_("[=FILENAME]"),_("generate a html report"));
 	printf("--csv%s \t %s\n",_("[=FILENAME]"),_("generate a csv report"));
@@ -136,10 +142,10 @@ static void do_sleep(int seconds)
 
 		c = getch();
 		switch (c) {
-		case 353: 
+		case KEY_BTAB:
 			show_prev_tab();
 			break;
-		case 9:
+		case '\t':
 			show_next_tab(); 
 			break;
 		case KEY_RIGHT:
@@ -156,8 +162,8 @@ static void do_sleep(int seconds)
 		case KEY_UP:
 			cursor_up();
 			break;
-		case 32:
-		case 10:
+		case ' ':
+		case '\n':
 			cursor_enter();
 			break;
 		case 's':
@@ -169,7 +175,7 @@ static void do_sleep(int seconds)
 			return;
 		case KEY_EXIT:
 		case 'q':
-		case 27:
+		case 27:	// Escape
 			leave_powertop = 1;
 			return;
 		}
@@ -278,16 +284,35 @@ static void checkroot() {
 
 }
 
+static int get_nr_open(void) {
+	int nr_open = NR_OPEN_DEF;
+	ifstream file;
+
+	file.open("/proc/sys/fs/nr_open", ios::in);
+	if (file) {
+		file >> nr_open;
+		if (!file)
+			nr_open = NR_OPEN_DEF;
+		file.close();
+	}
+	return nr_open;
+}
+
 static void powertop_init(void)
 {
 	static char initialized = 0;
 	int ret;
 	struct statfs st_fs;
+	struct rlimit rlmt;
 
 	if (initialized)
 		return;
 
 	checkroot();
+
+	rlmt.rlim_cur = rlmt.rlim_max = get_nr_open();
+	setrlimit (RLIMIT_NOFILE, &rlmt);
+
 	ret = system("/sbin/modprobe cpufreq_stats > /dev/null 2>&1");
 	ret = system("/sbin/modprobe msr > /dev/null 2>&1");
 	statfs("/sys/kernel/debug", &st_fs);
@@ -339,7 +364,7 @@ int main(int argc, char **argv)
 	int c;
 	char filename[4096];
 	char workload[4096] = {0,};
-	int  iterations = 1;
+	int  iterations = 1, auto_tune = 0;
 
 	set_new_handler(out_of_memory);
 
@@ -367,7 +392,10 @@ int main(int argc, char **argv)
 				print_usage();
 				exit(0);
 				break;
-
+			case 'a':
+				auto_tune = 1;
+				leave_powertop = 1;
+				break;
 			case 'c':
 				powertop_init();
 				calibrate();
@@ -423,13 +451,17 @@ int main(int argc, char **argv)
 		end_pci_access();
 		exit(0);
 	}
-
-	/* first one is short to not let the user wait too long */
 	init_display();
-	one_measurement(1, NULL);
 	initialize_tuning();
-	tuning_update_display();
-	show_tab(0);
+	/* first one is short to not let the user wait too long */
+	one_measurement(1, NULL);
+
+	if (!auto_tune) {
+		tuning_update_display();
+		show_tab(0);
+	} else {
+		auto_toggle_tuning();
+	}
 
 	while (!leave_powertop) {
 		show_cur_tab();
