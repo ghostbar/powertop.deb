@@ -5,6 +5,7 @@ powertop (2.6-1) UNRELEASED; urgency=medium
     architecture anymore.
   * New upstream release.
     + Drop now obsolete patch.
+  * Update year in debian/copyright.
 
  -- Julian Wollrath <jwollrath@web.de>  Sat, 17 May 2014 10:44:30 +0200
 
