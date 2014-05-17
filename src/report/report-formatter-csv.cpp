@@ -33,166 +33,27 @@
 #include <stdarg.h>
 
 #include "report-formatter-csv.h"
+#include "report-data-html.h"
 
-static const char report_csv_header[] = "PowerTOP Report";
 
 /* ************************************************************************ */
-
 report_formatter_csv::report_formatter_csv()
 {
-	add_doc_header();
+	/* Do nothing special  */
 }
 
 /* ************************************************************************ */
-
 void
 report_formatter_csv::finish_report()
 {
 	/* Do nothing special */
 }
 
-/* ************************************************************************ */
 
-void
-report_formatter_csv::add_doc_header()
-{
-	add_header(report_csv_header, 1);
-}
-
-/* ************************************************************************ */
-
-void
-report_formatter_csv::add_header(const char *header, int level)
-{
-	assert(header);
-
-	text_start = result.length();
-	csv_need_quotes = false;
-	addf("%.*s%s%.*s", 4 - level, "***", header, 4 - level, "***");
-	add_quotes();
-	add_exact("\n");
-}
-
-/* ************************************************************************ */
-
-void
-report_formatter_csv::begin_section(section_type stype)
-{
-	/* Do nothing special */
-}
-
-/* ************************************************************************ */
-
-void
-report_formatter_csv::end_section()
-{
-	/* Do nothing special */
-}
-
-/* ************************************************************************ */
-
-void
-report_formatter_csv::begin_table(table_type ttype)
-{
-	add_exact("\n");
-}
-
-/* ************************************************************************ */
-
-void
-report_formatter_csv::end_table()
-{
-	add_exact("\n");
-}
-
-/* ************************************************************************ */
-
-void
-report_formatter_csv::begin_row(row_type rtype)
-{
-	table_cell_number = 0;
-}
-
-/* ************************************************************************ */
-
-void
-report_formatter_csv::end_row()
-{
-	add_exact("\n");
-}
-
-/* ************************************************************************ */
-
-void
-report_formatter_csv::begin_cell(cell_type ctype)
-{
-	if (table_cell_number > 0) {
-		addf_exact("%c", REPORT_CSV_DELIMITER);
-#ifdef REPORT_CSV_ADD_SPACE
-		add_exact(" ");
-#endif /* !REPORT_CSV_ADD_SPACE */
-	}
-
-	text_start = result.length();
-	csv_need_quotes = false;
-}
-
-/* ************************************************************************ */
-
-void
-report_formatter_csv::add_quotes()
-{
-#ifdef REPORT_CSV_ESCAPE_EMPTY
-	if (csv_need_quotes || result.length() == text_start) {
-#else /* !REPORT_CSV_ESCAPE_EMPTY */
-	if (csv_need_quotes) {
-#endif /* !REPORT_CSV_ESCAPE_EMPTY */
-		result.insert(text_start, "\"");
-		add_exact("\"");
-	}
-}
-
-/* ************************************************************************ */
-
-void
-report_formatter_csv::end_cell()
-{
-	add_quotes();
-	table_cell_number++;
-}
-
-/* ************************************************************************ */
-
-void
-report_formatter_csv::add_empty_cell()
-{
-	/* Do nothing special */
-}
-
-/* ************************************************************************ */
-
-void
-report_formatter_csv::begin_paragraph()
-{
-	text_start = result.length();
-	csv_need_quotes = false;
-}
-
-/* ************************************************************************ */
-
-void
-report_formatter_csv::end_paragraph()
-{
-	add_quotes();
-	add_exact("\n");
-}
-
-/* ************************************************************************ */
-
-std::string
+string
 report_formatter_csv::escape_string(const char *str)
 {
-	std::string res;
+	string res;
 
 	assert(str);
 
@@ -215,10 +76,90 @@ report_formatter_csv::escape_string(const char *str)
 	return res;
 }
 
-/* ************************************************************************ */
+
+
+
+/* Report Style */
+void
+report_formatter_csv::add_header()
+{
+	add_exact("____________________________________________________________________\n");
+}
 
 void
-report_formatter_csv::set_cpu_number(int nr UNUSED)
+report_formatter_csv::end_header()
 {
 	/* Do nothing */
+}
+
+void
+report_formatter_csv::add_logo()
+{
+	add_exact("\t\t\tP o w e r T O P\n");
+}
+
+
+void
+report_formatter_csv::add_div(struct tag_attr * div_attr)
+{
+	add_exact("\n");
+}
+
+void
+report_formatter_csv::end_div()
+{
+	/*Do nothing*/
+}
+
+void
+report_formatter_csv::add_title(struct tag_attr *title_att, const char *title)
+{
+	add_exact("____________________________________________________________________\n");
+	addf_exact(" *  *  *   %s   *  *  *\n", title);
+}
+
+void
+report_formatter_csv::add_navigation()
+{
+	/* No nav in csv - thinking on table of contents */
+}
+
+void
+report_formatter_csv::add_summary_list(string *list, int size)
+{
+	int i;
+	add_exact("\n");
+	for (i=0; i < size; i+=2){
+		addf_exact("%s %s", list[i].c_str(), list[i+1].c_str());
+		if(i < (size - 1))
+			add_exact(",");
+	}
+	add_exact("\n");
+}
+
+void
+report_formatter_csv::add_table(string *system_data, struct table_attributes* tb_attr)
+{
+	int i, j;
+	int offset=0;
+	string tmp_str="";
+	int empty_row=0;
+	add_exact("\n");
+	for (i=0; i < tb_attr->rows; i++){
+		for (j=0; j < tb_attr->cols; j++){
+			offset = i * (tb_attr->cols) + j;
+			tmp_str=system_data[offset];
+
+			if(tmp_str == "&nbsp;")
+				empty_row+=1;
+			else{
+				addf_exact("%s", system_data[offset].c_str());
+				if(j < (tb_attr->cols - 1))
+					add_exact(",");
+			}
+		}
+		if(empty_row < tb_attr->cols)
+		add_exact("\n");
+		empty_row=0;
+	}
 }

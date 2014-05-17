@@ -49,6 +49,7 @@
 
 #include "devices/device.h"
 #include "devices/usb.h"
+#include "devices/ahci.h"
 #include "measurement/measurement.h"
 #include "parameters/parameters.h"
 #include "calibrate/calibrate.h"
@@ -216,10 +217,11 @@ void one_measurement(int seconds, char *workload)
 	report_summary();
 	w_display_cpu_cstates();
 	w_display_cpu_pstates();
-	report_display_cpu_cstates();
-	report_display_cpu_pstates();
+	if (reporttype != REPORT_OFF) {
+		report_display_cpu_cstates();
+		report_display_cpu_pstates();
+	}
 	report_process_update_display();
-
 	tuning_update_display();
 
 	end_process_data();
@@ -231,7 +233,7 @@ void one_measurement(int seconds, char *workload)
 	report_show_open_devices();
 
 	report_devices();
-
+	ahci_create_device_stats_table();
 	store_results(measurement_time);
 	end_cpu_data();
 }
@@ -484,6 +486,7 @@ int main(int argc, char **argv)
 	clear_tuning();
 	reset_display();
 
+	clean_open_devices();
 	clear_all_devices();
 	clear_all_cpus();
 

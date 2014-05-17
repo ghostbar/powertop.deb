@@ -1,7 +1,7 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) YEAR Intel Corporation
 # This file is distributed under the same license as the PACKAGE package.
-#
+# 
 # Translators:
 # Ettore Atalan <atalanttore@googlemail.com>, 2012-2013
 # Fabian Affolter <fab@fedoraproject.org>, 2011
@@ -13,12 +13,11 @@ msgstr ""
 "POT-Creation-Date: 2013-11-04 10:45-0800\n"
 "PO-Revision-Date: 2013-11-05 19:48+0000\n"
 "Last-Translator: Ettore Atalan <atalanttore@googlemail.com>\n"
-"Language-Team: German (Germany) (http://www.transifex.com/projects/p/"
-"PowerTOP/language/de_DE/)\n"
-"Language: de_DE\n"
+"Language-Team: German (Germany) (http://www.transifex.com/projects/p/PowerTOP/language/de_DE/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Language: de_DE\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
 #: src/parameters/persistent.cpp:46 src/parameters/persistent.cpp:140
@@ -184,9 +183,7 @@ msgstr ""
 msgid ""
 "Estimated power: %5.1f    Measured power: %5.1f    Sum: %5.1f\n"
 "\n"
-msgstr ""
-"Geschätzter Stromverbrauch: %5.1f    Gemessener Stromverbrauch: %5.1f    "
-"Summe: %5.1f\\n\n"
+msgstr "Geschätzter Stromverbrauch: %5.1f    Gemessener Stromverbrauch: %5.1f    Summe: %5.1f\\n\n"
 
 #: src/process/do_process.cpp:828 src/devices/device.cpp:171
 #, c-format
@@ -283,15 +280,12 @@ msgstr "GFX-Aufwachen/Sek und"
 #, c-format
 msgid ""
 "Too many open files, please increase the limit of open file descriptors.\n"
-msgstr ""
-"Zu viele offene Dateien. Bitte erhöhen Sie die Begrenzung von offenen "
-"Dateideskriptoren.\n"
+msgstr "Zu viele offene Dateien. Bitte erhöhen Sie die Begrenzung von offenen Dateideskriptoren.\n"
 
 #: src/perf/perf.cpp:117
 #, c-format
 msgid "PowerTOP %s needs the kernel to support the 'perf' subsystem\n"
-msgstr ""
-"PowerTOP %s benötigt einen Kernel der das 'perf'-Subsystem unterstützt\n"
+msgstr "PowerTOP %s benötigt einen Kernel der das 'perf'-Subsystem unterstützt\n"
 
 #: src/perf/perf.cpp:118
 #, c-format
@@ -406,9 +400,7 @@ msgstr "Abstimmbare Optionen"
 
 #: src/tuning/tuning.cpp:79
 msgid " <ESC> Exit | <Enter> Toggle tunable | <r> Window refresh"
-msgstr ""
-" <ESC> Beenden | <Enter> Abstimmbare Option umschalten | <r> Fenster "
-"aktualisieren"
+msgstr " <ESC> Beenden | <Enter> Abstimmbare Option umschalten | <r> Fenster aktualisieren"
 
 #: src/tuning/ethernet.cpp:54
 #, c-format
@@ -603,9 +595,7 @@ msgstr "Unbekanntes Ergebnis beim Ausführen der Arbeitsbelastung\n"
 
 #: src/main.cpp:242
 msgid "PowerTOP is out of memory. PowerTOP is Aborting"
-msgstr ""
-"PowerTOP hat keinen Speicherplatz mehr im Hauptspeicher. PowerTOP wird "
-"abgebrochen"
+msgstr "PowerTOP hat keinen Speicherplatz mehr im Hauptspeicher. PowerTOP wird abgebrochen"
 
 #: src/main.cpp:250
 #, c-format
@@ -615,9 +605,7 @@ msgstr "Das Vornehmen von Messungen wird vorbereitet\n"
 #: src/main.cpp:255
 #, c-format
 msgid "Taking %d measurement(s) for a duration of %d second(s) each.\n"
-msgstr ""
-"%d Messung(en) mit einer Dauer von je %d Sekunde(n) wird/werden "
-"vorgenommen.\n"
+msgstr "%d Messung(en) mit einer Dauer von je %d Sekunde(n) wird/werden vorgenommen.\n"
 
 #: src/main.cpp:257
 #, c-format
