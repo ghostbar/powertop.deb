@@ -29,6 +29,9 @@
 #include <string>
 
 #include "report-formatter-base.h"
+#include "report-data-html.h"
+
+using namespace std;
 
 /* Whether to replace " and ' in HTML by &quot; and &apos; respectively */
 /*#define REPORT_HTML_ESCAPE_QUOTES*/
@@ -41,76 +44,30 @@ struct html_section {
 
 /* ************************************************************************ */
 
-struct html_table {
-	const char *width;
-};
-
-/* ************************************************************************ */
-
-struct html_cell {
-	bool is_header;
-	const char *width;
-	int colspan;
-};
-
-/* ************************************************************************ */
-
 class report_formatter_html: public report_formatter_string_base
 {
 public:
 	report_formatter_html();
-
 	void finish_report();
 
-	void add_header(const char *header, int level);
-
-	void begin_section(section_type stype);
-	void end_section();
-
-	void begin_table(table_type ttype);
-	void end_table();
-
-	void begin_row(row_type rtype);
-	void end_row();
-
-	void begin_cell(cell_type ctype);
-	void end_cell();
-	void add_empty_cell();
-
-	void begin_paragraph();
-	void end_paragraph();
-
-	void set_cpu_number(int nr);
+	/* Report Style */
+	void add_logo();
+	void add_header();
+	void end_header();
+	void add_div(struct tag_attr *div_attr);
+	void end_div();
+	void add_title(struct tag_attr *title_att, const char *title);
+	void add_navigation();
+	void add_summary_list(string *list, int size);
+	void add_table(string *system_data, struct table_attributes *tb_attr);
 
 private:
 	/* Document structure related functions */
 	void init_markup();
-	void set_section(section_type stype, const char *id = "");
-	void set_table(table_type ttype, const char *width = "");
-	void set_cell(cell_type ctype, bool is_header = false,
-			const char *width = "", int colspan = 1);
-
-	/* HTML table elements CSS classes */
-	const char *get_cell_style(cell_type ctype);
-	const char *get_row_style(row_type rtype);
-	const char *get_style_pair(const char *even, const char *odd);
-	const char *get_style_quad(const char *even_even,
-				   const char *even_odd,
-				   const char *odd_even,
-				   const char *odd_odd,
-				   int alt_cell_number = -1);
-
 	void add_doc_header();
 	void add_doc_footer();
+	string escape_string(const char *str);
 
-	std::string escape_string(const char *str);
-
-	html_section sections[SECTION_MAX];
-	html_table tables[TABLE_MAX];
-	html_cell cells[CELL_MAX];
-	size_t table_row_number, table_cell_number;
-	cell_type current_cell;
-	int cpu_nr;
 };
 
 #endif /* _REPORT_FORMATTER_HTML_H_ */
