@@ -35,12 +35,12 @@
 #include "tuningusb.h"
 #include "runtime.h"
 #include "bluetooth.h"
-#include "cpufreq.h"
 #include "ethernet.h"
 #include "wifi.h"
 #include "../display.h"
 #include "../report/report.h"
 #include "../report/report-maker.h"
+#include "../report/report-data-html.h"
 #include "../lib.h"
 
 static void sort_tunables(void);
@@ -66,7 +66,6 @@ static void init_tuning(void)
 	add_ethernet_tunable();
 	add_bt_tunable();
 	add_wifi_tunables();
-	add_cpufreq_tunable();
 
 	sort_tunables();
 }
@@ -197,72 +196,102 @@ void tuning_window::expose(void)
 void report_show_tunables(void)
 {
 	unsigned int i;
-	bool is_header;
 	/* three tables; bad, unfixable, good */
-
 	sort_tunables();
-	report.begin_section(SECTION_TUNING);
+	string srt_tmp;
+	int idx, rows = 0, cols;
 
-	for (is_header = true, i = 0; i < all_tunables.size(); i++) {
-		int gb;
+	/* First Table */
 
-		gb = all_tunables[i]->good_bad();
-		if (gb != TUNE_BAD)
-			continue;
+	 /* div attr css_class and css_id */
+        tag_attr div_attr;
+        init_div(&div_attr, "clear_block", "tuning");
 
-		if (is_header) {
-			report.add_header("Software Settings in need of Tuning");
-			report.begin_table(TABLE_WIDE);
-			report.begin_row();
-			report.begin_cell(CELL_TUNABLE_HEADER);
-			report.add("Description");
-			report.begin_cell(CELL_TUNABLE_HEADER);
-			report.add("Script");
-			is_header = false;
+	/* Set Title attributes */
+       	tag_attr title_attr;
+        init_title_attr(&title_attr);
+
+	/* Set Table attributes, rows, and cols */
+	table_attributes tune_table_css;
+	cols=2;
+	idx = cols;
+
+	for (i = 0; i < all_tunables.size(); i++) {
+		int tgb;
+		tgb = all_tunables[i]->good_bad();
+		if (tgb == TUNE_BAD)
+			rows+=1;
+	}
+	/* add section */
+	report.add_div(&div_attr);
+
+	if (rows > 0){
+		rows= rows + 1;
+		init_tune_table_attr(&tune_table_css, rows, cols);
+
+		/* Set array of data in row Major order */
+		string tunable_data[cols * rows];
+
+		tunable_data[0]=__("Description");
+		tunable_data[1]=__("Script");
+
+		for (i = 0; i < all_tunables.size(); i++) {
+			int gb;
+			gb = all_tunables[i]->good_bad();
+			if (gb != TUNE_BAD)
+				continue;
+			tunable_data[idx]=string(all_tunables[i]->description());
+			idx+=1;
+			tunable_data[idx]=string(all_tunables[i]->toggle_script());
+			idx+=1;
 		}
 
-		report.begin_row(ROW_TUNABLE_BAD);
-		report.begin_cell();
-		report.add(all_tunables[i]->description());
-		report.begin_cell();
-		report.add(all_tunables[i]->toggle_script());
+		/* Report Output */
+		report.add_title(&title_attr,__("Software Settings in Need of Tuning"));
+		report.add_table(tunable_data, &tune_table_css);
 	}
 
-	for (i = 0, is_header = true; i < all_untunables.size(); i++) {
-		if (is_header) {
-			report.add_header("Untunable Software Issues");
-			report.begin_table(TABLE_WIDE);
-			report.begin_row();
-			report.begin_cell(CELL_TUNABLE_HEADER);
-			report.add("Description");
-			is_header = false;
-		}
+	/* Second Table */
+	/* Set Table attributes, rows, and cols */
+	cols=1;
+	rows= all_untunables.size() + 1;
+	init_tune_table_attr(&tune_table_css, rows, cols);
 
-		report.begin_row(ROW_TUNABLE_BAD);
-		report.begin_cell();
-		report.add(all_untunables[i]->description());
-	}
+	/* Set array of data in row Major order */
+	string untunable_data[rows];
+	untunable_data[0]=__("Description");
 
-	for (i = 0, is_header = true; i < all_tunables.size(); i++) {
+	for (i = 0; i < all_untunables.size(); i++)
+		untunable_data[i+1]= string(all_untunables[i]->description());
+
+	/* Report Output */
+	report.add_title(&title_attr,__("Untunable Software Issues"));
+	report.add_table(untunable_data, &tune_table_css);
+
+	/* Third Table */
+	/* Set Table attributes, rows, and cols */
+	cols=1;
+	rows= all_tunables.size() + 1;
+	init_std_table_attr(&tune_table_css, rows, cols);
+
+	/* Set array of data in row Major order */
+	string tuned_data[rows];
+	tuned_data[0]=__("Description");
+	idx=cols;
+	for (i = 0; i < all_tunables.size(); i++) {
 		int gb;
-
 		gb = all_tunables[i]->good_bad();
 		if (gb != TUNE_GOOD)
 			continue;
 
-		if (is_header) {
-			report.add_header("Optimal Tuned Software Settings");
-			report.begin_table(TABLE_WIDE);
-			report.begin_row();
-			report.begin_cell(CELL_TUNABLE_HEADER);
-			report.add("Description");
-			is_header = false;
-		}
+		tuned_data[idx]=string(all_tunables[i]->description());
+		idx+=1;
+        }
+	/* Report Output */
+	report.add_title(&title_attr,__("Optimal Tuned Software Settings"));
+        report.add_table(tuned_data, &tune_table_css);
+        report.end_div();
 
-		report.begin_row(ROW_TUNABLE);
-		report.begin_cell();
-		report.add(all_tunables[i]->description());
-	}
 }
 
 void clear_tuning()

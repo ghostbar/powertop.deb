@@ -56,9 +56,6 @@ report_maker::~report_maker()
 void
 report_maker::finish_report()
 {
-	if (section_opened)
-		end_section();
-
 	formatter->finish_report();
 }
 
@@ -76,11 +73,6 @@ void
 report_maker::clear_result()
 {
 	formatter->clear_result();
-	section_opened	 = false;
-	table_opened	 = false;
-	cell_opened	 = false;
-	row_opened	 = false;
-	paragraph_opened = false;
 }
 
 /* ************************************************************************ */
@@ -125,8 +117,6 @@ void
 report_maker::add(const char *str)
 {
 	assert(str);
-	assert(section_opened);
-
 	formatter->add(str);
 }
 
@@ -136,196 +126,64 @@ void
 report_maker::addf(const char *fmt, ...)
 {
 	va_list ap;
-
 	assert(fmt);
-	assert(section_opened);
-
 	va_start(ap, fmt);
 	formatter->addv(fmt, ap);
 	va_end(ap);
 }
 
-/* ************************************************************************ */
-
+/* *** Report Style *** */
 void
-report_maker::add_header(const char *header, int level)
+report_maker::add_logo()
 {
-	assert(header);
-	assert(section_opened);
-	assert(level > 0 && level < 4);
-
-	if (table_opened)
-		end_table();
-	else if (paragraph_opened)
-		end_paragraph();
-
-	formatter->add_header(header, level);
+	formatter->add_logo();
 }
 
-/* ************************************************************************ */
-
 void
-report_maker::begin_section(section_type stype)
+report_maker::add_header()
 {
-	assert(stype >= 0 && stype < SECTION_MAX);
-
-	if (section_opened)
-		end_section(); /* Close previous */
-
-	section_opened = true;
-	formatter->begin_section(stype);
+	formatter->add_header();
 }
 
-/* ************************************************************************ */
-
 void
-report_maker::end_section()
+report_maker::end_header()
 {
-	assert(section_opened);
-
-	if (table_opened)
-		end_table();
-	else if (paragraph_opened)
-		end_paragraph();
-
-	section_opened = false;
-	formatter->end_section();
+	formatter->end_header();
 }
 
-/* ************************************************************************ */
-
 void
-report_maker::begin_table(table_type ttype)
+report_maker::add_title(struct tag_attr *att_title, const char *title)
 {
-	assert(ttype >= 0 && ttype < TABLE_MAX);
-	assert(section_opened);
-
-	if (table_opened)
-		end_table(); /* Close previous */
-	else if (paragraph_opened)
-		end_paragraph();
-
-	table_opened = true;
-	formatter->begin_table(ttype);
+	formatter->add_title(att_title, title);
 }
 
-/* ************************************************************************ */
-
 void
-report_maker::end_table()
+report_maker::add_div(struct tag_attr * div_attr)
 {
-	assert(section_opened);
-	assert(table_opened);
-
-	if (row_opened)
-		end_row();
-
-	table_opened = false;
-	formatter->end_table();
+	formatter->add_div(div_attr);
 }
 
-/* ************************************************************************ */
-
 void
-report_maker::begin_row(row_type rtype)
+report_maker::end_div()
 {
-	assert(section_opened);
-	assert(table_opened);
-	assert(rtype >= 0 && rtype < ROW_MAX);
-
-	if (row_opened)
-		end_row(); /* Close previous */
-
-	row_opened = true;
-	formatter->begin_row(rtype);
+	formatter->end_div();
 }
 
-/* ************************************************************************ */
-
 void
-report_maker::end_row()
+report_maker::add_navigation()
 {
-	assert(section_opened);
-	assert(table_opened);
-	assert(row_opened);
-
-	if (cell_opened)
-		end_cell();
-
-	row_opened = false;
-	formatter->end_row();
+	formatter->add_navigation();
 }
 
-/* ************************************************************************ */
-
 void
-report_maker::begin_cell(cell_type ctype)
+report_maker::add_summary_list(string *list, int size)
 {
-	assert(section_opened);
-	assert(table_opened);
-	assert(row_opened);
-	assert(ctype >= 0 && ctype < CELL_MAX);
-
-	if (cell_opened)
-		end_cell(); /* Close previous */
-
-	cell_opened = true;
-	formatter->begin_cell(ctype);
+	formatter->add_summary_list(list, size);
 }
 
-/* ************************************************************************ */
-
 void
-report_maker::end_cell()
+report_maker::add_table(string *system_data, struct table_attributes *tb_attr)
 {
-	assert(section_opened);
-	assert(table_opened);
-	assert(row_opened);
-	assert(cell_opened);
-
-	cell_opened = false;
-	formatter->end_cell();
+	formatter->add_table(system_data, tb_attr);
 }
 
-/* ************************************************************************ */
-
-void
-report_maker::add_empty_cell()
-{
-	formatter->add_empty_cell();
-}
-
-/* ************************************************************************ */
-
-void
-report_maker::set_cpu_number(int nr)
-{
-	formatter->set_cpu_number(nr);
-}
-
-/* ************************************************************************ */
-
-void
-report_maker::begin_paragraph()
-{
-	assert(section_opened);
-
-	if (table_opened)
-		end_table();
-	else if (paragraph_opened)
-		end_paragraph(); /* Close previous */
-
-	paragraph_opened = true;
-	formatter->begin_paragraph();
-}
-
-/* ************************************************************************ */
-
-void
-report_maker::end_paragraph()
-{
-	assert(paragraph_opened);
-
-	paragraph_opened = false;
-	formatter->end_paragraph();
-}

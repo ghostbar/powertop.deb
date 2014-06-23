@@ -23,6 +23,8 @@
  *  Frederic Weisbecker gave his permission to relicense the code to
  *  the Lesser General Public License.
  */
+#define _GNU_SOURCE
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -230,7 +232,7 @@ int pevent_pid_is_registered(struct pevent *pevent, int pid)
  */
 static int add_new_comm(struct pevent *pevent, const char *comm, int pid)
 {
-	struct cmdline *cmdlines = pevent->cmdlines;
+	struct cmdline *newcmdlines, *cmdlines = pevent->cmdlines;
 	const struct cmdline *cmdline;
 	struct cmdline key;
 
@@ -247,11 +249,13 @@ static int add_new_comm(struct pevent *pevent, const char *comm, int pid)
 		return -1;
 	}
 
-	cmdlines = realloc(cmdlines, sizeof(*cmdlines) * (pevent->cmdline_count + 1));
-	if (!cmdlines) {
+	newcmdlines = realloc(cmdlines, sizeof(*cmdlines) * (pevent->cmdline_count + 1));
+	if (!newcmdlines) {
+		free(cmdlines);
 		errno = ENOMEM;
 		return -1;
 	}
+	cmdlines = newcmdlines;
 
 	cmdlines[pevent->cmdline_count].comm = strdup(comm);
 	if (!cmdlines[pevent->cmdline_count].comm) {
@@ -2351,7 +2355,7 @@ process_flags(struct event_format *event, struct print_arg *arg, char **tok)
 	field = alloc_arg();
 	if (!field) {
 		do_warning("%s: not enough memory!", __func__);
-		goto out_free;
+		goto out;
 	}
 
 	type = process_arg(event, field, &token);
@@ -2387,6 +2391,7 @@ out_free_field:
 	free_arg(field);
 out_free:
 	free_token(token);
+out:
 	*tok = NULL;
 	return EVENT_ERROR;
 }
@@ -2404,7 +2409,7 @@ process_symbols(struct event_format *event, struct print_arg *arg, char **tok)
 	field = alloc_arg();
 	if (!field) {
 		do_warning("%s: not enough memory!", __func__);
-		goto out_free;
+		goto out;
 	}
 
 	type = process_arg(event, field, &token);
@@ -2425,6 +2430,7 @@ out_free_field:
 	free_arg(field);
 out_free:
 	free_token(token);
+out:
 	*tok = NULL;
 	return EVENT_ERROR;
 }
@@ -2442,7 +2448,7 @@ process_hex(struct event_format *event, struct print_arg *arg, char **tok)
 	field = alloc_arg();
 	if (!field) {
 		do_warning("%s: not enough memory!", __func__);
-		goto out_free;
+		goto out;
 	}
 
 	type = process_arg(event, field, &token);
@@ -2475,6 +2481,7 @@ process_hex(struct event_format *event, struct print_arg *arg, char **tok)
  out_free:
 	free_arg(field);
 	free_token(token);
+out:
 	*tok = NULL;
 	return EVENT_ERROR;
 }
@@ -5156,7 +5163,7 @@ int get_field_val(struct trace_seq *s, struct format_field *field,
 {
 	if (!field) {
 		if (err)
-			trace_seq_printf(s, "<CANT FIND FIELD %s>", name);
+			trace_seq_printf(s, "<CAN'T FIND FIELD %s>", name);
 		return -1;
 	}
 
@@ -5199,7 +5206,7 @@ void *pevent_get_field_raw(struct trace_seq *s, struct event_format *event,
 
 	if (!field) {
 		if (err)
-			trace_seq_printf(s, "<CANT FIND FIELD %s>", name);
+			trace_seq_printf(s, "<CAN'T FIND FIELD %s>", name);
 		return NULL;
 	}
 

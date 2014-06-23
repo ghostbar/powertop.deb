@@ -41,6 +41,7 @@
 #include "../display.h"
 #include "../report/report.h"
 #include "../report/report-maker.h"
+#include "../report/report-data-html.h"
 
 static class abstract_cpu system_level;
 
@@ -85,11 +86,15 @@ static class abstract_cpu * new_package(int package, int cpu, char * vendor, int
 	cpu_rapl_dev = new class cpu_rapl_device(cpudev, _("cpu rapl package"), packagename, ret);
 	if (cpu_rapl_dev->device_present())
 		all_devices.push_back(cpu_rapl_dev);
+	else
+		delete cpu_rapl_dev;
 
 	sprintf(packagename, _("dram rapl package %i"), cpu);
 	dram_rapl_dev = new class dram_rapl_device(cpudev, _("dram rapl package"), packagename, ret);
 	if (dram_rapl_dev->device_present())
 		all_devices.push_back(dram_rapl_dev);
+	else
+		delete dram_rapl_dev;
 
 	return ret;
 }
@@ -420,149 +425,288 @@ static int get_cstates_num(void)
 
 void report_display_cpu_cstates(void)
 {
-	char buffer[512], buffer2[512];
+	char buffer[512], buffer2[512], tmp_num[50];
 	unsigned int package, core, cpu;
-	int line, cstates_num;
+	int line, cstates_num, title=0, core_num=0;
 	class abstract_cpu *_package, * _core, * _cpu;
+	const char* core_type = NULL;
 
 	cstates_num = get_cstates_num();
+	/* div attr css_class and css_id */
+	tag_attr div_attr;
+	init_div(&div_attr, "clear_block", "cpuidle");
 
-	report.begin_section(SECTION_CPUIDLE);
-	report.add_header("Processor Idle state report");
+	/* Set Table attributes, rows, and cols */
+	table_attributes std_table_css;
+	table_size pkg_tbl_size;
+	table_size core_tbl_size;
+	table_size cpu_tbl_size;
+
+
+	/* Set Title attributes */
+	tag_attr title_attr;
+	init_title_attr(&title_attr);
+
+	/* Report add section */
+	report.add_div(&div_attr);
+	report.add_title(&title_attr, __("Processor Idle State Report"));
+
+	/* Set array of data in row Major order */
+       	int idx1, idx2, idx3;
+	string tmp_str;
 
 	for (package = 0; package < system_level.children.size(); package++) {
 		bool first_core = true;
+		idx1=0;
+		idx2=0;
+		idx3=0;
 
 		_package = system_level.children[package];
 		if (!_package)
 			continue;
+		/* Tables for PKG, CORE, CPU */
+		pkg_tbl_size.cols=2;
+		pkg_tbl_size.rows= cstates_num+1;
+		string pkg_data[pkg_tbl_size.cols * pkg_tbl_size.rows];
 
-		report.begin_table(TABLE_WIDE);
+		core_tbl_size.cols=2;
+		core_tbl_size.rows=(cstates_num *_package->children.size())
+				+ _package->children.size();
+		string core_data[core_tbl_size.cols * core_tbl_size.rows];
+		int num_cpus=0, num_cores=0;
+
 		for (core = 0; core < _package->children.size(); core++) {
 			_core = _package->children[core];
 			if (!_core)
 				continue;
+			core_type = _core->get_type();
+			if (core_type != NULL)
+				if (strcmp(core_type, "Core") == 0 )
+					num_cores+=1;
 
+			for (cpu = 0; cpu < _core->children.size(); cpu++) {
+				_cpu = _core->children[cpu];
+				if (!_cpu)
+					continue;
+				num_cpus+=1;
+			}
+		}
+
+		cpu_tbl_size.cols=(2 * (num_cpus / num_cores)) + 1;
+		cpu_tbl_size.rows = (cstates_num * _package->children.size())
+				+ _package->children.size();
+
+		string cpu_data[cpu_tbl_size.cols * cpu_tbl_size.rows];
+
+		for (core = 0; core < _package->children.size(); core++) {
+			cpu_data[idx3]="&nbsp;";
+			idx3+=1;
+			_core = _package->children[core];
+
+			if (!_core)
+				continue;
+
+			/* *** PKG STARTS *** */
 			for (line = LEVEL_HEADER; line <= cstates_num; line++) {
 				bool first_cpu = true;
-
 				if (!_package->has_cstate_level(line))
-					continue;
-
-				report.begin_row();
+				continue;
 				buffer[0] = 0;
 				buffer2[0] = 0;
-
 				if (line == LEVEL_HEADER) {
 					if (first_core) {
-						report.begin_cell(CELL_FIRST_PACKAGE_HEADER);
-						report.addf(__("Package %i"), _package->get_number());
-					} else {
-						report.begin_cell(CELL_EMPTY_PACKAGE_HEADER);
-						report.add_empty_cell();
+						pkg_data[idx1]=__("Package");
+						idx1+=1;
+						sprintf(tmp_num,"%d",  _package->get_number());
+						pkg_data[idx1]= string(tmp_num);
+						idx1+=1;
 					}
 				} else if (first_core) {
-					report.begin_cell(CELL_STATE_NAME);
-					report.add(_package->fill_cstate_name(line, buffer));
-					report.begin_cell(CELL_PACKAGE_STATE_VALUE);
-					report.add(_package->fill_cstate_line(line, buffer2));
-				} else {
-					report.begin_cell(CELL_EMPTY_PACKAGE_STATE);
-					report.add_empty_cell();
+					tmp_str=string(_package->fill_cstate_name(line, buffer));
+					pkg_data[idx1]=(tmp_str=="" ? "&nbsp;" : tmp_str);
+					idx1+=1;
+					tmp_str=string(_package->fill_cstate_line(line, buffer2));
+					pkg_data[idx1]=(tmp_str=="" ? "&nbsp;" : tmp_str);
+					idx1+=1;
 				}
 
-				report.begin_cell(CELL_SEPARATOR);
-				report.add_empty_cell();
-
+				/* *** CORE STARTS *** */
 				if (!_core->can_collapse()) {
 					buffer[0] = 0;
 					buffer2[0] = 0;
 
 					if (line == LEVEL_HEADER) {
-						report.begin_cell(CELL_CORE_HEADER);
 						/* Here we need to check for which core type we
-  						 * are using. Do not use the core type for the 
-  						 * report.addf as it breaks an important macro use 
-  						 * for translation decision making for the reports. 
-  						   */
-						const char* core_type = _core->get_type(); 
-					        if (core_type != NULL) {	
+						* are using. Do not use the core type for the
+						* report.addf as it breaks an important macro use
+						* for translation decision making for the reports.
+						* */
+						core_type = _core->get_type();
+						if (core_type != NULL) {
 							if (strcmp(core_type, "Core") == 0 ) {
-								report.addf(__("Core %i"), _core->get_number());
+								core_data[idx2]="";
+								idx2+=1;
+								sprintf(tmp_num, __("Core %d"),_core->get_number());
+								core_data[idx2]=string(tmp_num);
+								idx2+=1;
+								core_num+=1;
 							} else {
-								report.addf(__("GPU %i"), _core->get_number());
-							} 
+								core_data[idx2]="";
+								idx2+=1;
+								sprintf(tmp_num,__("GPU %d"),_core->get_number());
+								core_data[idx2]=string(tmp_num);
+								idx2+=1;
+							}
 						}
-                                       } else {
-                                                report.begin_cell(CELL_STATE_NAME);
-                                                report.add(_core->fill_cstate_name(line, buffer));
-						report.begin_cell(CELL_CORE_STATE_VALUE);
-						report.add(_core->fill_cstate_line(line, buffer2));
+					} else {
+						tmp_str=string(_core->fill_cstate_name(line, buffer));
+						core_data[idx2]=(tmp_str=="" ? "&nbsp;" : tmp_str);
+						idx2+=1;
+						tmp_str=string(_core->fill_cstate_line(line, buffer2));
+						core_data[idx2]=(tmp_str=="" ? "&nbsp;" : tmp_str);
+						idx2+=1;
 					}
 				}
-
-				report.begin_cell(CELL_SEPARATOR);
-				report.add_empty_cell();
-
+				// *** CPU STARTS ***
 				for (cpu = 0; cpu < _core->children.size(); cpu++) {
 					_cpu = _core->children[cpu];
+
 					if (!_cpu)
 						continue;
-
-					report.set_cpu_number(cpu);
 					if (line == LEVEL_HEADER) {
-						report.begin_cell(CELL_CPU_CSTATE_HEADER);
-						report.addf(__("CPU %i"), _cpu->get_number());
+						cpu_data[idx3] = __("CPU");
+						idx3+=1;
+						sprintf(tmp_num,"%d",_cpu->get_number());
+						cpu_data[idx3]=string(tmp_num);
+						idx3+=1;
 						continue;
 					}
 
 					if (first_cpu) {
-						report.begin_cell(CELL_STATE_NAME);
-						report.add(_cpu->fill_cstate_name(line, buffer));
+						title+=1;
+						cpu_data[idx3]=(string(_cpu->fill_cstate_name(line, buffer)));
+						idx3+=1;
 						first_cpu = false;
 					}
 
 					buffer[0] = 0;
-					report.begin_cell(CELL_CPU_STATE_VALUE);
-					report.add(_cpu->fill_cstate_percentage(line, buffer));
-					report.begin_cell(CELL_CPU_STATE_VALUE);
-					if (line != LEVEL_C0)
-						report.add(_cpu->fill_cstate_time(line, buffer));
-					else
-						report.add_empty_cell();
+					tmp_str=string(_cpu->fill_cstate_percentage(line, buffer));
+					cpu_data[idx3]=(tmp_str=="" ? "&nbsp;" : tmp_str);
+					idx3+=1;
+
+					if (line != LEVEL_C0){
+						tmp_str=string(_cpu->fill_cstate_time(line, buffer));
+						cpu_data[idx3]=(tmp_str=="" ? "&nbsp;" : tmp_str);
+						idx3+=1;
+					} else {
+						cpu_data[idx3]="&nbsp;";
+						idx3+=1;
+					}
 				}
 			}
-
 			first_core = false;
 		}
+
+		/* Report Output */
+		title=title/core_num;
+		init_pkg_table_attr(&std_table_css, pkg_tbl_size.rows,  pkg_tbl_size.cols);
+		report.add_table(pkg_data, &std_table_css);
+		init_core_table_attr(&std_table_css, title+1, core_tbl_size.rows,
+				core_tbl_size.cols);
+		report.add_table(core_data, &std_table_css);
+		init_cpu_table_attr(&std_table_css, title+1, cpu_tbl_size.rows,
+				cpu_tbl_size.cols);
+		report.add_table(cpu_data, &std_table_css);
 	}
+	report.end_div();
 }
 
 void report_display_cpu_pstates(void)
 {
-	char buffer[512], buffer2[512];
+	char buffer[512], buffer2[512], tmp_num[50];
 	unsigned int package, core, cpu;
 	int line;
 	class abstract_cpu *_package, * _core, * _cpu;
 	unsigned int i, pstates_num;
+	const char* core_type = NULL;
 
-	for (i = 0, pstates_num = 0; i < all_cpus.size(); i++)
+	/* div attr css_class and css_id */
+	tag_attr div_attr;
+	init_div(&div_attr, "clear_block", "cpufreq");
+
+	/* Set Table attributes, rows, and cols */
+	table_attributes std_table_css;
+	table_size pkg_tbl_size;
+	table_size core_tbl_size;
+	table_size cpu_tbl_size;
+
+
+	/* Set Title attributes */
+	tag_attr title_attr;
+	init_title_attr(&title_attr);
+
+	/* Report add section */
+        report.add_div(&div_attr);
+        report.add_title(&title_attr, __("Processor Frequency Report"));
+
+        /* Set array of data in row Major order */
+	int idx1, idx2, idx3, num_cpus=0, num_cores=0;
+        string tmp_str;
+
+	for (i = 0, pstates_num = 0; i < all_cpus.size(); i++) {
 		if (all_cpus[i])
 			pstates_num = std::max<unsigned int>(pstates_num,
-								all_cpus[i]->pstates.size());
-
-	report.begin_section(SECTION_CPUFREQ);
-	report.add_header("Processor Frequency Report");
+				all_cpus[i]->pstates.size());
+	}
 
 	for (package = 0; package < system_level.children.size(); package++) {
 		bool first_core = true;
+		idx1=0;
+		idx2=0;
+		idx3=0;
 
 		_package = system_level.children[package];
 		if (!_package)
 			continue;
 
-		report.begin_table(TABLE_WIDE);
+		/*  Tables for PKG, CORE, CPU */
+		pkg_tbl_size.cols=2;
+		pkg_tbl_size.rows=pstates_num+2;
+		string pkg_data[pkg_tbl_size.cols * pkg_tbl_size.rows];
+
+		core_tbl_size.cols=2;
+		core_tbl_size.rows=((pstates_num+2) *_package->children.size());
+		string core_data[core_tbl_size.cols * core_tbl_size.rows];
+
+		/* PKG */
+		num_cpus=0;
+		num_cores=0;
 		for (core = 0; core < _package->children.size(); core++) {
+			_core = _package->children[core];
+			if (!_core)
+				continue;
+
+			core_type = _core->get_type();
+			if (core_type != NULL)
+				if (strcmp(core_type, "Core") == 0 )
+					num_cores+=1;
+
+			for (cpu = 0; cpu < _core->children.size(); cpu++) {
+				_cpu = _core->children[cpu];
+				if (!_cpu)
+					continue;
+				num_cpus+=1;
+			}
+		}
+		cpu_tbl_size.cols= (num_cpus/ num_cores) + 1;
+		cpu_tbl_size.rows= (pstates_num+2) * _package->children.size()
+				+ _package->children.size();
+		string cpu_data[cpu_tbl_size.cols * cpu_tbl_size.rows];
+
+		/* Core */
+		for (core = 0; core < _package->children.size(); core++) {
+			cpu_data[idx3]="&nbsp;";
+			idx3+=1;
 			_core = _package->children[core];
 			if (!_core)
 				continue;
@@ -576,73 +720,84 @@ void report_display_cpu_pstates(void)
 				if (!_package->has_pstate_level(line))
 					continue;
 
-				report.begin_row();
-
 				buffer[0] = 0;
 				buffer2[0] = 0;
 				if (first_core) {
 					if (line == LEVEL_HEADER) {
-						report.begin_cell(CELL_FIRST_PACKAGE_HEADER);
-						report.addf(__("Package %i"), _package->get_number());
+						pkg_data[idx1]=__("Package");
+						idx1+=1;
+						sprintf(tmp_num,"%d",  _package->get_number());
+						pkg_data[idx1]= string(tmp_num);
+						idx1+=1;
 					} else {
-						report.begin_cell(CELL_STATE_NAME);
-						report.add(_package->fill_pstate_name(line, buffer));
-						report.begin_cell(CELL_PACKAGE_STATE_VALUE);
-						report.add(_package->fill_pstate_line(line, buffer2));
+						tmp_str=string(_package->fill_pstate_name(line, buffer));
+						pkg_data[idx1]=(tmp_str=="" ? "&nbsp;" : tmp_str);
+						idx1+=1;
+						tmp_str=string(_package->fill_pstate_line(line, buffer2));
+						pkg_data[idx1]=(tmp_str=="" ? "&nbsp;" : tmp_str);
+						idx1+=1;
 					}
-				} else {
-					report.begin_cell(CELL_EMPTY_PACKAGE_STATE);
-					report.add_empty_cell();
 				}
 
-				report.begin_cell(CELL_SEPARATOR);
-				report.add_empty_cell();
 
 				if (!_core->can_collapse()) {
 					buffer[0] = 0;
 					buffer2[0] = 0;
 					if (line == LEVEL_HEADER) {
-						report.begin_cell(CELL_CORE_HEADER);
-						report.addf(__("Core %i"), _core->get_number());
+						core_data[idx2]="";
+						idx2+=1;
+						sprintf(tmp_num,__("Core %d"),_core->get_number());
+						core_data[idx2]=string(tmp_num);
+						idx2+=1;
 					} else {
-						report.begin_cell(CELL_STATE_NAME);
-						report.add(_core->fill_pstate_name(line, buffer));
-						report.begin_cell(CELL_PACKAGE_STATE_VALUE);
-						report.add(_core->fill_pstate_line(line, buffer2));
+						tmp_str=string(_core->fill_pstate_name(line, buffer));
+						core_data[idx2]= (tmp_str=="" ? "&nbsp;" : tmp_str);
+						idx2+=1;
+						tmp_str=string(_core->fill_pstate_line(line, buffer2));
+						core_data[idx2]= (tmp_str=="" ? "&nbsp;" : tmp_str);
+						idx2+=1;
 					}
 				}
 
-				report.begin_cell(CELL_SEPARATOR);
-				report.add_empty_cell();
-
+				/* CPU */
 				for (cpu = 0; cpu < _core->children.size(); cpu++) {
 					buffer[0] = 0;
 					_cpu = _core->children[cpu];
 					if (!_cpu)
 						continue;
 
-					report.set_cpu_number(cpu);
 					if (line == LEVEL_HEADER) {
-						report.begin_cell(CELL_CPU_PSTATE_HEADER);
-						report.addf(__("CPU %i"), _cpu->get_number());
+						sprintf(tmp_num,__("CPU %d"),_cpu->get_number());
+						cpu_data[idx3] = string(tmp_num);
+						idx3+=1;
 						continue;
 					}
 
 					if (first_cpu) {
-						report.begin_cell(CELL_STATE_NAME);
-						report.add(_cpu->fill_pstate_name(line, buffer));
+						tmp_str=string(_cpu->fill_pstate_name(line, buffer));
+						cpu_data[idx3]=(tmp_str=="" ? "&nbsp;" : tmp_str);
+						idx3+=1;
 						first_cpu = false;
 					}
 
 					buffer[0] = 0;
-					report.begin_cell(CELL_CPU_STATE_VALUE);
-					report.add(_cpu->fill_pstate_line(line, buffer));
+					tmp_str=string(_cpu->fill_pstate_line(line, buffer));
+					cpu_data[idx3]=(tmp_str=="" ? "&nbsp;" : tmp_str);
+					idx3+=1;
 				}
 			}
-
 			first_core = false;
 		}
+		init_pkg_table_attr(&std_table_css, pkg_tbl_size.rows, pkg_tbl_size.cols);
+		report.add_table(pkg_data, &std_table_css);
+		init_core_table_attr(&std_table_css, (pstates_num+2),
+				core_tbl_size.rows, core_tbl_size.cols);
+		report.add_table(core_data, &std_table_css);
+		init_cpu_table_attr(&std_table_css, (pstates_num+2),
+				cpu_tbl_size.rows, cpu_tbl_size.cols);
+		report.add_table(cpu_data, &std_table_css);
 	}
+	report.end_div();
 }
 
 void impl_w_display_cpu_states(int state)
