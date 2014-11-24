@@ -77,18 +77,15 @@ void clean_open_devices()
 	unsigned int i=0;
 
 	for (i = 0; i < one.size(); i++) {
-		if(one[i])
-			free(one[i]);
+		free(one[i]);
 	}
 
 	for (i = 0; i < two.size(); i++) {
-		if(two[i])
-			free(two[i]);
+		free(two[i]);
 	}
 
 	for (i = 0; i < devpower.size(); i++){
-		if(devpower[i])
-			free(devpower[i]);
+		free(devpower[i]);
 	}
 }
 
@@ -326,7 +323,7 @@ void report_show_open_devices(void)
 	init_title_attr(&title_attr);
 
 	/* Set array of data in row Major order */
-	string process_data[cols * rows];
+	string *process_data = new string[cols * rows];
 
 	sort(target->begin(), target->end(), devlist_sort);
 	process_data[0]=__("Process");
@@ -348,5 +345,6 @@ void report_show_open_devices(void)
 	/* No div attribute here inherits from device power report */
 	report.add_title(&title_attr, __("Process Device Activity"));
 	report.add_table(process_data, &std_table_css);
+	delete [] process_data;
 	report.end_div();
 }

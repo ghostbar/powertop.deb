@@ -115,7 +115,7 @@ static void system_info(void)
         init_title_attr(&title_attr);
 
 	/* Set array of data in row Major order */
-	string system_data[sys_table.rows * sys_table.cols];
+	string *system_data = new string[sys_table.rows * sys_table.cols];
 	system_data[0]=__("PowerTOP Version");
 	system_data[1]=POWERTOP_VERSION;
 
@@ -136,7 +136,9 @@ static void system_info(void)
 	system_data[5].append(str.c_str());
 	str = cpu_model();
 	system_data[6]=__("CPU Information");
-	system_data[7]= sysconf(_SC_NPROCESSORS_ONLN);
+	stringstream n_proc;
+	n_proc << sysconf(_SC_NPROCESSORS_ONLN);
+	system_data[7]= n_proc.str();
 	system_data[7].append(str.c_str());
 
 	str = read_sysfs_string("/etc/system-release");
@@ -157,6 +159,7 @@ static void system_info(void)
 	report.end_div();
 	report.end_header();
 	report.add_navigation();
+	delete [] system_data;
 }
 
 void init_report_output(char *filename_str, int iterations)

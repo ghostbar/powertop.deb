@@ -82,14 +82,14 @@ static class abstract_cpu * new_package(int package, int cpu, char * vendor, int
 	cpudev = new class cpudevice(_("cpu package"), packagename, ret);
 	all_devices.push_back(cpudev);
 
-	sprintf(packagename, _("cpu rapl package %i"), cpu);
+	sprintf(packagename, _("package-%i"), cpu);
 	cpu_rapl_dev = new class cpu_rapl_device(cpudev, _("cpu rapl package"), packagename, ret);
 	if (cpu_rapl_dev->device_present())
 		all_devices.push_back(cpu_rapl_dev);
 	else
 		delete cpu_rapl_dev;
 
-	sprintf(packagename, _("dram rapl package %i"), cpu);
+	sprintf(packagename, _("package-%i"), cpu);
 	dram_rapl_dev = new class dram_rapl_device(cpudev, _("dram rapl package"), packagename, ret);
 	if (dram_rapl_dev->device_present())
 		all_devices.push_back(dram_rapl_dev);
@@ -296,6 +296,18 @@ void enumerate_cpus(void)
 				number = -2;
 			}
 		}
+		/* bogomips is removed in ARM, using CPU revision to enumerate */
+		if (strncasecmp(line, "CPU revision\t", 13) == 0) {
+			if (number == -1) {
+				/* Not all /proc/cpuinfo include "processor\t". */
+				number = 0;
+			}
+			if (number >= 0) {
+				handle_one_cpu(number, vendor, family, model);
+				set_max_cpu(number);
+				number = -2;
+			}
+		}
 	}
 
 
@@ -428,7 +440,7 @@ void report_display_cpu_cstates(void)
 	char buffer[512], buffer2[512], tmp_num[50];
 	unsigned int package, core, cpu;
 	int line, cstates_num, title=0, core_num=0;
-	class abstract_cpu *_package, * _core, * _cpu;
+	class abstract_cpu *_package, *_core = NULL, * _cpu;
 	const char* core_type = NULL;
 
 	cstates_num = get_cstates_num();
@@ -467,12 +479,12 @@ void report_display_cpu_cstates(void)
 		/* Tables for PKG, CORE, CPU */
 		pkg_tbl_size.cols=2;
 		pkg_tbl_size.rows= ((cstates_num+1)-LEVEL_HEADER)+1;
-		string pkg_data[pkg_tbl_size.cols * pkg_tbl_size.rows];
+		string *pkg_data = new string[pkg_tbl_size.cols * pkg_tbl_size.rows];
 
 		core_tbl_size.cols=2;
 		core_tbl_size.rows=(cstates_num *_package->children.size())
 				+ _package->children.size();
-		string core_data[core_tbl_size.cols * core_tbl_size.rows];
+		string *core_data = new string[core_tbl_size.cols * core_tbl_size.rows];
 		int num_cpus=0, num_cores=0;
 
 		for (core = 0; core < _package->children.size(); core++) {
@@ -494,7 +506,7 @@ void report_display_cpu_cstates(void)
 		cpu_tbl_size.cols=(2 * (num_cpus / num_cores)) + 1;
 		cpu_tbl_size.rows = ((cstates_num+1-LEVEL_HEADER) * _package->children.size())
 				+ _package->children.size();
-		string cpu_data[cpu_tbl_size.cols * cpu_tbl_size.rows];
+		string *cpu_data = new string[cpu_tbl_size.cols * cpu_tbl_size.rows];
 
 		for (core = 0; core < _package->children.size(); core++) {
 			cpu_data[idx3]="&nbsp;";
@@ -608,7 +620,7 @@ void report_display_cpu_cstates(void)
 		/* Report Output */
 		if(core_num > 0)
 			title=title/core_num;
-		else if( _core->children.size() > 0)
+		else if(_core && _core->children.size() > 0)
 			title=title/_core->children.size();
 
 		init_pkg_table_attr(&std_table_css, pkg_tbl_size.rows,  pkg_tbl_size.cols);
@@ -621,6 +633,9 @@ void report_display_cpu_cstates(void)
 		init_cpu_table_attr(&std_table_css, title+1, cpu_tbl_size.rows,
 				cpu_tbl_size.cols);
 		report.add_table(cpu_data, &std_table_css);
+		delete [] pkg_data;
+		delete [] core_data;
+		delete [] cpu_data;
 	}
 	report.end_div();
 }
@@ -630,7 +645,7 @@ void report_display_cpu_pstates(void)
 	char buffer[512], buffer2[512], tmp_num[50];
 	unsigned int package, core, cpu;
 	int line, title=0;
-	class abstract_cpu *_package, * _core, * _cpu;
+	class abstract_cpu *_package, *_core = NULL, * _cpu;
 	unsigned int i, pstates_num;
 	const char* core_type = NULL;
 
@@ -676,11 +691,11 @@ void report_display_cpu_pstates(void)
 		/*  Tables for PKG, CORE, CPU */
 		pkg_tbl_size.cols=2;
 		pkg_tbl_size.rows=((pstates_num+1)-LEVEL_HEADER)+2;
-		string pkg_data[pkg_tbl_size.cols * pkg_tbl_size.rows];
+		string *pkg_data = new string[pkg_tbl_size.cols * pkg_tbl_size.rows];
 
 		core_tbl_size.cols=2;
 		core_tbl_size.rows=((pstates_num+2) *_package->children.size());
-		string core_data[core_tbl_size.cols * core_tbl_size.rows];
+		string *core_data = new string[core_tbl_size.cols * core_tbl_size.rows];
 
 		/* PKG */
 		num_cpus=0;
@@ -705,7 +720,7 @@ void report_display_cpu_pstates(void)
 		cpu_tbl_size.cols= (num_cpus/ num_cores) + 1;
 		cpu_tbl_size.rows= (pstates_num+2) * _package->children.size()
 				+ _package->children.size();
-		string cpu_data[cpu_tbl_size.cols * cpu_tbl_size.rows];
+		string *cpu_data = new string[cpu_tbl_size.cols * cpu_tbl_size.rows];
 
 		/* Core */
 		for (core = 0; core < _package->children.size(); core++) {
@@ -794,7 +809,7 @@ void report_display_cpu_pstates(void)
 		}
 		init_pkg_table_attr(&std_table_css, pkg_tbl_size.rows, pkg_tbl_size.cols);
 		report.add_table(pkg_data, &std_table_css);
-		if(!_core->can_collapse()){
+		if(_core && !_core->can_collapse()){
 			title=pstates_num+2;
 			init_core_table_attr(&std_table_css, title,
 				core_tbl_size.rows, core_tbl_size.cols);
@@ -806,6 +821,9 @@ void report_display_cpu_pstates(void)
 		init_cpu_table_attr(&std_table_css, title,
 				cpu_tbl_size.rows, cpu_tbl_size.cols);
 		report.add_table(cpu_data, &std_table_css);
+		delete [] pkg_data;
+		delete [] core_data;
+		delete [] cpu_data;
 	}
 	report.end_div();
 }

@@ -108,7 +108,7 @@ static int last_check_result;
 int bt_tunable::good_bad(void)
 {
 	struct hci_dev_info devinfo;
-	FILE *file;
+	FILE *file = 0;
 	int fd;
 	int thisbytes = 0;
 	int ret;
@@ -149,11 +149,9 @@ int bt_tunable::good_bad(void)
 			memset(line, 0, 2048);
 			if (fgets(line, 2047, file) == NULL) {
 				result = last_check_result = TUNE_GOOD;
-				pclose(file);
 				goto out;
 			}
 
-			pclose(file);
 			if (strlen(line) > 0) {
 				result = last_check_result = TUNE_GOOD;
 				goto out;
@@ -166,6 +164,8 @@ int bt_tunable::good_bad(void)
 
 out:
 	previous_bytes = thisbytes;
+	if (file)
+		pclose(file);
 	close(fd);
 	return result;
 }
@@ -176,10 +176,12 @@ void bt_tunable::toggle(void)
 	good = good_bad();
 
 	if (good == TUNE_GOOD) {
-		system("/usr/sbin/hciconfig hci0 up &> /dev/null &");
+		if(!system("/usr/sbin/hciconfig hci0 up &> /dev/null &"))
+			printf("System is not available\n");
 		return;
 	}
-	system("/usr/sbin/hciconfig hci0 down &> /dev/null");
+	if(!system("/usr/sbin/hciconfig hci0 down &> /dev/null"))
+		printf("System is not available\n");
 }
 
 const char *bt_tunable::toggle_script(void)
