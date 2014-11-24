@@ -6,6 +6,7 @@ powertop (2.7-1) UNRELEASED; urgency=medium
     + ARM support for devfreq stats.
     + Added support to new Intel platforms.
     + Several bug fixes.
+  * Update debian/copyright.
 
  -- Julian Wollrath <jwollrath@web.de>  Mon, 24 Nov 2014 23:23:37 +0100
 

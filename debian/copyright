@@ -18,6 +18,10 @@ Files: src/cpu/intel_gpu.cpp
 Copyright: © 2012 Intel Corporation
 License: GPL-2
 
+Files: src/devices/devfreq.*
+Copyright: © 2012 Linaro
+License: GPL-2
+
 Files: src/measurement/extech.cpp
 Copyright: © 2005 Patrick Mochel
            © 2006, 2011 Intel Corporation
