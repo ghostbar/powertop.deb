@@ -1,3 +1,9 @@
+powertop (2.6.1-2) UNRELEASED; urgency=medium
+
+  * Update debian/watch (modified the one provided by bartm, thanks).
+
+ -- Julian Wollrath <jwollrath@web.de>  Mon, 24 Nov 2014 23:02:25 +0100
+
 powertop (2.6.1-1) unstable; urgency=medium
 
   * debian/watch: adjust to new URL. 
