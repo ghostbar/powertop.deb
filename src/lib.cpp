@@ -408,6 +408,8 @@ static void init_pretty_print(void)
 	pretty_prints["[12] i8042"] = _("PS/2 Touchpad / Keyboard / Mouse");
 	pretty_prints["ahci"] = _("SATA controller");
 	pretty_prints["usb-device-8087-0020"] = _("Intel built in USB hub");
+
+	pretty_print_init = 1;
 }
 
 
@@ -472,10 +474,10 @@ int read_msr(int cpu, uint64_t offset, uint64_t *value)
 	int fd;
 	char msr_path[256];
 
-	fd = sprintf(msr_path, "/dev/cpu/%d/msr", cpu);
+	sprintf(msr_path, "/dev/cpu/%d/msr", cpu);
 
 	if (access(msr_path, R_OK) != 0){
-		fd = sprintf(msr_path, "/dev/msr%d", cpu);
+		sprintf(msr_path, "/dev/msr%d", cpu);
 
 		if (access(msr_path, R_OK) != 0){
 			fprintf(stderr,
@@ -504,10 +506,10 @@ int write_msr(int cpu, uint64_t offset, uint64_t value)
 	int fd;
 	char msr_path[256];
 
-	fd = sprintf(msr_path, "/dev/cpu/%d/msr", cpu);
+	sprintf(msr_path, "/dev/cpu/%d/msr", cpu);
 
 	if (access(msr_path, R_OK) != 0){
-		fd = sprintf(msr_path, "/dev/msr%d", cpu);
+		sprintf(msr_path, "/dev/msr%d", cpu);
 
 		if (access(msr_path, R_OK) != 0){
 			fprintf(stderr,
@@ -531,7 +533,7 @@ int write_msr(int cpu, uint64_t offset, uint64_t value)
 
 #define UI_NOTIFY_BUFF_SZ 2048
 
-void ui_notify_user(const char *frmt, ...)
+void ui_notify_user_ncurses(const char *frmt, ...)
 {
 	char notify[UI_NOTIFY_BUFF_SZ];
 	va_list list;
@@ -547,4 +549,13 @@ void ui_notify_user(const char *frmt, ...)
 	va_end(list);
 	mvprintw(1, 0, notify);
 	attroff(COLOR_PAIR(1));
+}
+
+void ui_notify_user_console(const char *frmt, ...)
+{
+	va_list list;
+
+	va_start(list, frmt);
+	vprintf(frmt, list);
+	va_end(list);
 }

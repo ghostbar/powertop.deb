@@ -63,8 +63,12 @@
 #include <string>
 using namespace std;
 /* Conditional gettext. We need original strings for CSV. */
+#ifdef ENABLE_NLS
 #define __(STRING) \
 	((report.get_type() == REPORT_CSV) ? (STRING) : gettext(STRING))
+#else
+#define __(STRING) (STRING)
+#endif
 
 #ifndef UNUSED
 #define UNUSED __attribute__((unused))
@@ -85,6 +89,7 @@ enum section_type {
 	SECTION_SYSINFO,
 	SECTION_CPUIDLE,
 	SECTION_CPUFREQ,
+	SECTION_DEVFREQ,
 	SECTION_DEVPOWER,
 	SECTION_SOFTWARE,
 	SECTION_SUMMARY,

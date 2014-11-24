@@ -67,8 +67,10 @@ static string disk_name(char *path, char *target, char *shortname)
 		sprintf(line, "%s/%s/model", pathname, dirent->d_name);
 		file = fopen(line, "r");
 		if (file) {
-			if (fgets(line, 4096, file) == NULL)
+			if (fgets(line, 4096, file) == NULL) {
+				fclose(file);
 				break;
+			}
 			fclose(file);
 			c = strchr(line, '\n');
 			if (c)
@@ -382,7 +384,7 @@ void ahci_create_device_stats_table(void)
 
 
 	/* Set array of data in row Major order */
-	string ahci_data[cols * rows];
+	string *ahci_data = new string[cols * rows];
 	ahci_data[0]=__("Link");
 	ahci_data[1]=__("Active");
 	ahci_data[2]=__("Partial");
@@ -396,6 +398,7 @@ void ahci_create_device_stats_table(void)
 	report.add_title(&title_attr, __("AHCI ALPM Residency Statistics"));
 	report.add_table(ahci_data, &std_table_css);
 	report.end_div();
+	delete [] ahci_data;
 }
 
 void ahci::report_device_stats(string *ahci_data, int idx)
