@@ -1,4 +1,4 @@
-powertop (2.7-1) UNRELEASED; urgency=medium
+powertop (2.7-1~exp1) experimental; urgency=medium
 
   * Update debian/watch (modified the one provided by bartm, thanks).
   * New upstream release:
