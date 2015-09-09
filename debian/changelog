@@ -1,3 +1,9 @@
+powertop (2.7-1) unstable; urgency=medium
+
+  * New upstream version to unstable.
+
+ -- Jose Luis Rivas <ghostbar@debian.org>  Wed, 09 Sep 2015 08:41:21 -0500
+
 powertop (2.7-1~exp1) experimental; urgency=medium
 
   * Update debian/watch (modified the one provided by bartm, thanks).
