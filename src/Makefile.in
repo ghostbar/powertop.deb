@@ -83,14 +83,17 @@ subdir = src
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
 	$(top_srcdir)/depcomp
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/m4/gettext.m4 \
-	$(top_srcdir)/m4/iconv.m4 $(top_srcdir)/m4/intlmacosx.m4 \
-	$(top_srcdir)/m4/lib-ld.m4 $(top_srcdir)/m4/lib-link.m4 \
-	$(top_srcdir)/m4/lib-prefix.m4 $(top_srcdir)/m4/libtool.m4 \
-	$(top_srcdir)/m4/ltoptions.m4 $(top_srcdir)/m4/ltsugar.m4 \
-	$(top_srcdir)/m4/ltversion.m4 $(top_srcdir)/m4/lt~obsolete.m4 \
-	$(top_srcdir)/m4/nls.m4 $(top_srcdir)/m4/po.m4 \
-	$(top_srcdir)/m4/progtest.m4 $(top_srcdir)/configure.ac
+am__aclocal_m4_deps = $(top_srcdir)/m4/ax_cxx_compile_stdcxx_11.m4 \
+	$(top_srcdir)/m4/ax_pthread.m4 \
+	$(top_srcdir)/m4/gcc_fortify_source_cc.m4 \
+	$(top_srcdir)/m4/gettext.m4 $(top_srcdir)/m4/iconv.m4 \
+	$(top_srcdir)/m4/intlmacosx.m4 $(top_srcdir)/m4/lib-ld.m4 \
+	$(top_srcdir)/m4/lib-link.m4 $(top_srcdir)/m4/lib-prefix.m4 \
+	$(top_srcdir)/m4/libtool.m4 $(top_srcdir)/m4/ltoptions.m4 \
+	$(top_srcdir)/m4/ltsugar.m4 $(top_srcdir)/m4/ltversion.m4 \
+	$(top_srcdir)/m4/lt~obsolete.m4 $(top_srcdir)/m4/nls.m4 \
+	$(top_srcdir)/m4/po.m4 $(top_srcdir)/m4/progtest.m4 \
+	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 mkinstalldirs = $(install_sh) -d
@@ -155,6 +158,7 @@ am_powertop_OBJECTS = powertop-devlist.$(OBJEXT) \
 	tuning/powertop-tuning.$(OBJEXT) \
 	tuning/powertop-tuningsysfs.$(OBJEXT) \
 	tuning/powertop-tuningusb.$(OBJEXT) \
+	tuning/powertop-tuningi2c.$(OBJEXT) \
 	tuning/powertop-wifi.$(OBJEXT)
 nodist_powertop_OBJECTS =
 powertop_OBJECTS = $(am_powertop_OBJECTS) $(nodist_powertop_OBJECTS)
@@ -279,6 +283,7 @@ GETTEXT_PACKAGE = @GETTEXT_PACKAGE@
 GMSGFMT = @GMSGFMT@
 GMSGFMT_015 = @GMSGFMT_015@
 GREP = @GREP@
+HAVE_CXX11 = @HAVE_CXX11@
 INSTALL = @INSTALL@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
@@ -329,6 +334,9 @@ PKG_CONFIG_LIBDIR = @PKG_CONFIG_LIBDIR@
 PKG_CONFIG_PATH = @PKG_CONFIG_PATH@
 POSUB = @POSUB@
 POW_LIB = @POW_LIB@
+PTHREAD_CC = @PTHREAD_CC@
+PTHREAD_CFLAGS = @PTHREAD_CFLAGS@
+PTHREAD_LIBS = @PTHREAD_LIBS@
 RANLIB = @RANLIB@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
@@ -352,6 +360,7 @@ am__leading_dot = @am__leading_dot@
 am__quote = @am__quote@
 am__tar = @am__tar@
 am__untar = @am__untar@
+ax_pthread_config = @ax_pthread_config@
 bindir = @bindir@
 build = @build@
 build_alias = @build_alias@
@@ -510,6 +519,8 @@ powertop_SOURCES = \
 	tuning/tuningsysfs.h \
 	tuning/tuningusb.cpp \
 	tuning/tuningusb.h \
+	tuning/tuningi2c.cpp \
+	tuning/tuningi2c.h \
 	tuning/wifi.cpp \
 	tuning/wifi.h
 
@@ -526,7 +537,6 @@ powertop_CXXFLAGS = \
 
 powertop_CPPFLAGS = \
 	-DLOCALEDIR=\"$(localedir)\" \
-	-D_FORTIFY_SOURCE=2 \
 	$(GLIB2_CFLAGS) \
 	$(LIBNL_CFLAGS) \
 	$(LIBZ_CFLAGS) \
@@ -803,6 +813,8 @@ tuning/powertop-tuningsysfs.$(OBJEXT): tuning/$(am__dirstamp) \
 	tuning/$(DEPDIR)/$(am__dirstamp)
 tuning/powertop-tuningusb.$(OBJEXT): tuning/$(am__dirstamp) \
 	tuning/$(DEPDIR)/$(am__dirstamp)
+tuning/powertop-tuningi2c.$(OBJEXT): tuning/$(am__dirstamp) \
+	tuning/$(DEPDIR)/$(am__dirstamp)
 tuning/powertop-wifi.$(OBJEXT): tuning/$(am__dirstamp) \
 	tuning/$(DEPDIR)/$(am__dirstamp)
 
@@ -883,6 +895,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@tuning/$(DEPDIR)/powertop-runtime.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@tuning/$(DEPDIR)/powertop-tunable.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@tuning/$(DEPDIR)/powertop-tuning.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@tuning/$(DEPDIR)/powertop-tuningi2c.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@tuning/$(DEPDIR)/powertop-tuningsysfs.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@tuning/$(DEPDIR)/powertop-tuningusb.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@tuning/$(DEPDIR)/powertop-wifi.Po@am__quote@
@@ -1760,6 +1773,20 @@ tuning/powertop-tuningusb.obj: tuning/tuningusb.cpp
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='tuning/tuningusb.cpp' object='tuning/powertop-tuningusb.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(powertop_CPPFLAGS) $(CPPFLAGS) $(powertop_CXXFLAGS) $(CXXFLAGS) -c -o tuning/powertop-tuningusb.obj `if test -f 'tuning/tuningusb.cpp'; then $(CYGPATH_W) 'tuning/tuningusb.cpp'; else $(CYGPATH_W) '$(srcdir)/tuning/tuningusb.cpp'; fi`
+
+tuning/powertop-tuningi2c.o: tuning/tuningi2c.cpp
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(powertop_CPPFLAGS) $(CPPFLAGS) $(powertop_CXXFLAGS) $(CXXFLAGS) -MT tuning/powertop-tuningi2c.o -MD -MP -MF tuning/$(DEPDIR)/powertop-tuningi2c.Tpo -c -o tuning/powertop-tuningi2c.o `test -f 'tuning/tuningi2c.cpp' || echo '$(srcdir)/'`tuning/tuningi2c.cpp
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) tuning/$(DEPDIR)/powertop-tuningi2c.Tpo tuning/$(DEPDIR)/powertop-tuningi2c.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='tuning/tuningi2c.cpp' object='tuning/powertop-tuningi2c.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(powertop_CPPFLAGS) $(CPPFLAGS) $(powertop_CXXFLAGS) $(CXXFLAGS) -c -o tuning/powertop-tuningi2c.o `test -f 'tuning/tuningi2c.cpp' || echo '$(srcdir)/'`tuning/tuningi2c.cpp
+
+tuning/powertop-tuningi2c.obj: tuning/tuningi2c.cpp
+@am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(powertop_CPPFLAGS) $(CPPFLAGS) $(powertop_CXXFLAGS) $(CXXFLAGS) -MT tuning/powertop-tuningi2c.obj -MD -MP -MF tuning/$(DEPDIR)/powertop-tuningi2c.Tpo -c -o tuning/powertop-tuningi2c.obj `if test -f 'tuning/tuningi2c.cpp'; then $(CYGPATH_W) 'tuning/tuningi2c.cpp'; else $(CYGPATH_W) '$(srcdir)/tuning/tuningi2c.cpp'; fi`
+@am__fastdepCXX_TRUE@	$(AM_V_at)$(am__mv) tuning/$(DEPDIR)/powertop-tuningi2c.Tpo tuning/$(DEPDIR)/powertop-tuningi2c.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	$(AM_V_CXX)source='tuning/tuningi2c.cpp' object='tuning/powertop-tuningi2c.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(AM_V_CXX@am__nodep@)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(powertop_CPPFLAGS) $(CPPFLAGS) $(powertop_CXXFLAGS) $(CXXFLAGS) -c -o tuning/powertop-tuningi2c.obj `if test -f 'tuning/tuningi2c.cpp'; then $(CYGPATH_W) 'tuning/tuningi2c.cpp'; else $(CYGPATH_W) '$(srcdir)/tuning/tuningi2c.cpp'; fi`
 
 tuning/powertop-wifi.o: tuning/wifi.cpp
 @am__fastdepCXX_TRUE@	$(AM_V_CXX)$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(powertop_CPPFLAGS) $(CPPFLAGS) $(powertop_CXXFLAGS) $(CXXFLAGS) -MT tuning/powertop-wifi.o -MD -MP -MF tuning/$(DEPDIR)/powertop-wifi.Tpo -c -o tuning/powertop-wifi.o `test -f 'tuning/wifi.cpp' || echo '$(srcdir)/'`tuning/wifi.cpp

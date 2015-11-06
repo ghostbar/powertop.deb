@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <dirent.h>
+#include <limits.h>
 
 
 using namespace std;
@@ -50,7 +51,7 @@ static string disk_name(char *path, char *target, char *shortname)
 	char pathname[PATH_MAX];
 	string diskname = "";
 
-	sprintf(pathname, "%s/%s", path, target);
+	snprintf(pathname, PATH_MAX, "%s/%s", path, target);
 	dir = opendir(pathname);
 	if (!dir)
 		return diskname;
@@ -64,7 +65,7 @@ static string disk_name(char *path, char *target, char *shortname)
 		if (!strchr(dirent->d_name, ':'))
 			continue;
 
-		sprintf(line, "%s/%s/model", pathname, dirent->d_name);
+		snprintf(line, PATH_MAX, "%s/%s/model", pathname, dirent->d_name);
 		file = fopen(line, "r");
 		if (file) {
 			if (fgets(line, 4096, file) == NULL) {
@@ -91,7 +92,7 @@ static string model_name(char *path, char *shortname)
 	struct dirent *dirent;
 	char pathname[PATH_MAX];
 
-	sprintf(pathname, "%s/device", path);
+	snprintf(pathname, PATH_MAX, "%s/device", path);
 
 	dir = opendir(pathname);
 	if (!dir)
@@ -130,57 +131,57 @@ ahci::ahci(char *_name, char *path): device()
 
 	register_sysfs_path(sysfs_path);
 
-	sprintf(devname, "ahci:%s", _name);
+	snprintf(devname, 128, "ahci:%s", _name);
 	strncpy(name, devname, sizeof(name));
 	active_index = get_param_index("ahci-link-power-active");
 	partial_index = get_param_index("ahci-link-power-partial");
 
-	sprintf(buffer, "%s-active", name);
+	snprintf(buffer, 4096, "%s-active", name);
 	active_rindex = get_result_index(buffer);
 
-	sprintf(buffer, "%s-partial", name);
+	snprintf(buffer, 4096, "%s-partial", name);
 	partial_rindex = get_result_index(buffer);
 
-	sprintf(buffer, "%s-slumber", name);
+	snprintf(buffer, 4096, "%s-slumber", name);
 	slumber_rindex = get_result_index(buffer);
 
-	sprintf(buffer, "%s-devslp", name);
+	snprintf(buffer, 4096, "%s-devslp", name);
 	devslp_rindex = get_result_index(buffer);
 
 	diskname = model_name(path, _name);
 
 	if (strlen(diskname.c_str()) == 0)
-		sprintf(humanname, _("SATA link: %s"), _name);
+		snprintf(humanname, 4096, _("SATA link: %s"), _name);
 	else
-		sprintf(humanname, _("SATA disk: %s"), diskname.c_str());
+		snprintf(humanname, 4096, _("SATA disk: %s"), diskname.c_str());
 }
 
 void ahci::start_measurement(void)
 {
-	char filename[4096];
+	char filename[PATH_MAX];
 	ifstream file;
 
-	sprintf(filename, "%s/ahci_alpm_active", sysfs_path);
+	snprintf(filename, PATH_MAX, "%s/ahci_alpm_active", sysfs_path);
 	try {
 		file.open(filename, ios::in);
 		if (file) {
 			file >> start_active;
 		}
 		file.close();
-		sprintf(filename, "%s/ahci_alpm_partial", sysfs_path);
+		snprintf(filename, PATH_MAX, "%s/ahci_alpm_partial", sysfs_path);
 		file.open(filename, ios::in);
 
 		if (file) {
 			file >> start_partial;
 		}
 		file.close();
-		sprintf(filename, "%s/ahci_alpm_slumber", sysfs_path);
+		snprintf(filename, PATH_MAX, "%s/ahci_alpm_slumber", sysfs_path);
 		file.open(filename, ios::in);
 		if (file) {
 			file >> start_slumber;
 		}
 		file.close();
-		sprintf(filename, "%s/ahci_alpm_devslp", sysfs_path);
+		snprintf(filename, PATH_MAX, "%s/ahci_alpm_devslp", sysfs_path);
 		file.open(filename, ios::in);
 		if (file) {
 			file >> start_devslp;
@@ -195,32 +196,32 @@ void ahci::start_measurement(void)
 
 void ahci::end_measurement(void)
 {
-	char filename[4096];
+	char filename[PATH_MAX];
 	char powername[4096];
 	ifstream file;
 	double p;
 	double total;
 
 	try {
-		sprintf(filename, "%s/ahci_alpm_active", sysfs_path);
+		snprintf(filename, 4096, "%s/ahci_alpm_active", sysfs_path);
 		file.open(filename, ios::in);
 		if (file) {
 			file >> end_active;
 		}
 		file.close();
-		sprintf(filename, "%s/ahci_alpm_partial", sysfs_path);
+		snprintf(filename, 4096, "%s/ahci_alpm_partial", sysfs_path);
 		file.open(filename, ios::in);
 		if (file) {
 			file >> end_partial;
 		}
 		file.close();
-		sprintf(filename, "%s/ahci_alpm_slumber", sysfs_path);
+		snprintf(filename, 4096, "%s/ahci_alpm_slumber", sysfs_path);
 		file.open(filename, ios::in);
 		if (file) {
 			file >> end_slumber;
 		}
 		file.close();
-		sprintf(filename, "%s/ahci_alpm_devslp", sysfs_path);
+		snprintf(filename, 4096, "%s/ahci_alpm_devslp", sysfs_path);
 		file.open(filename, ios::in);
 		if (file) {
 			file >> end_devslp;
@@ -244,28 +245,28 @@ void ahci::end_measurement(void)
 	p = (end_active - start_active) / total * 100.0;
 	if (p < 0)
 		 p = 0;
-	sprintf(powername, "%s-active", name);
+	snprintf(powername, 4096, "%s-active", name);
 	report_utilization(powername, p);
 
 	/* percent in partial */
 	p = (end_partial - start_partial) / total * 100.0;
 	if (p < 0)
 		 p = 0;
-	sprintf(powername, "%s-partial", name);
+	snprintf(powername, 4096, "%s-partial", name);
 	report_utilization(powername, p);
 
 	/* percent in slumber */
 	p = (end_slumber - start_slumber) / total * 100.0;
 	if (p < 0)
 		 p = 0;
-	sprintf(powername, "%s-slumber", name);
+	snprintf(powername, 4096, "%s-slumber", name);
 	report_utilization(powername, p);
 
 	/* percent in devslp */
 	p = (end_devslp - start_devslp) / total * 100.0;
 	if (p < 0)
 		 p = 0;
-	sprintf(powername, "%s-devslp", name);
+	snprintf(powername, 4096, "%s-devslp", name);
 	report_utilization(powername, p);
 }
 
@@ -291,7 +292,7 @@ void create_all_ahcis(void)
 {
 	struct dirent *entry;
 	DIR *dir;
-	char filename[4096];
+	char filename[PATH_MAX];
 
 	dir = opendir("/sys/class/scsi_host/");
 	if (!dir)
@@ -305,7 +306,7 @@ void create_all_ahcis(void)
 			break;
 		if (entry->d_name[0] == '.')
 			continue;
-		sprintf(filename, "/sys/class/scsi_host/%s/ahci_alpm_accounting", entry->d_name);
+		snprintf(filename, PATH_MAX, "/sys/class/scsi_host/%s/ahci_alpm_accounting", entry->d_name);
 
 		check_file.open(filename, ios::in);
 		check_file.get();
@@ -318,7 +319,7 @@ void create_all_ahcis(void)
 			continue;
 		file << 1 ;
 		file.close();
-		sprintf(filename, "/sys/class/scsi_host/%s", entry->d_name);
+		snprintf(filename, PATH_MAX, "/sys/class/scsi_host/%s", entry->d_name);
 
 		bl = new class ahci(entry->d_name, filename);
 		all_devices.push_back(bl);
@@ -360,7 +361,7 @@ void ahci_create_device_stats_table(void)
 
 	/* div attr css_class and css_id */
 	tag_attr div_attr;
-	init_div(&div_attr, "", "ahci");
+	init_div(&div_attr, "clear_block", "ahci");
 
 	/* Set Title attributes */
 	tag_attr title_attr;

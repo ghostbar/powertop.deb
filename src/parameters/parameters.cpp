@@ -30,6 +30,7 @@
 #include <math.h>
 #include <vector>
 #include <unistd.h>
+#include <limits.h>
 
 
 struct parameter_bundle all_parameters;
@@ -439,7 +440,7 @@ int global_power_valid(void)
 		return 1;
 
 	if (past_results.size() > 0 && global_run_times < 1){
-		printf("To show power estimates do %ld measurement(s) connected to battery only",
+		printf("To show power estimates do %ld measurement(s) connected to battery only\n",
 			(3 * all_parameters.parameters.size()) - past_results.size());
 		global_run_times += 1; 
 	}
@@ -450,12 +451,12 @@ int global_power_valid(void)
 /* find the directory to store powertop results/parameters based on distribution*/
 char* get_param_directory(const char *filename)
 {
-	static char tempfilename[4096];
+	static char tempfilename[PATH_MAX];
 
 	if (access("/var/cache/powertop", W_OK ) == 0)
-		sprintf(tempfilename, "/var/cache/powertop/%s", filename);
+		snprintf(tempfilename, PATH_MAX, "/var/cache/powertop/%s", filename);
 	if (access("/data/local/powertop", W_OK ) == 0)
-		sprintf(tempfilename, "/data/local/powertop/%s", filename);
+		snprintf(tempfilename, PATH_MAX, "/data/local/powertop/%s", filename);
 
 	return tempfilename;
 };

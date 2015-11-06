@@ -35,6 +35,7 @@
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
+#include <limits.h>
 
 #include "../lib.h"
 #include "../parameters/parameters.h"
@@ -51,16 +52,20 @@ static int intel_cpu_models[] = {
 	0x2C,	/* Westmere */
 	0x2A,	/* SNB */
 	0x2D,	/* SNB Xeon */
+	0x37,	/* BYT-M */
 	0x3A,	/* IVB */
 	0x3C,
+	0x3D,	/* Broadwell */
 	0x3E,	/* IVB Xeon */
-	0x37,	/* BYT-M */
-	0x45,	/* HSW-ULT */
-	0x3D,	/* Intel Next Generation */
 	0x3F,	/* HSX */
+	0x45,	/* HSW-ULT */
 	0x46,	/* HSW */
+	0x47,	/* BDW-H */
+	0x4C,	/* BSW */
 	0x4D,	/* AVN */
 	0x4F,	/* BDX */
+	0x4E,	/* SKY */
+	0x5E,	/* SKY */
 	0x56,	/* BDX-DE */
 	0	/* last entry must be zero */
 };
@@ -123,29 +128,28 @@ nhm_core::nhm_core(int model)
 		case 0x3C:
 		case 0x3E:      /* IVB Xeon */
 		case 0x45:	/* HSW-ULT */
+		case 0x4E:	/* SKY */
+		case 0x5E:	/* SKY */
 		case 0x3D:	/* Intel Next Generation */
 			has_c7_res = 1;
 	}
 
-	/* BYT-M does not support C3/C4 */
-	if (model == 0x37) {
-		has_c3_res = 0;
-		has_c1_res = 1;
-		this->byt_has_ahci();
-                if ((this->get_byt_ahci_support()) == 0)
-                        has_c7_res = 1;/*BYT-T PC7 <- S0iX*/
-                else
-                        has_c7_res = 0;
-	} else {
-		has_c3_res = 1;
-		has_c1_res = 0;
+	has_c3_res = 1;
+	has_c1_res = 0;
+
+	switch (model) {
+		case 0x37:	/* BYT-M does not support C3/C4 */
+		case 0x4C:	/* BSW does not support C3 */
+			has_c3_res = 0;
+			has_c1_res = 1;
 	}
+
 }
 
 void nhm_core::measurement_start(void)
 {
 	ifstream file;
-	char filename[4096];
+	char filename[PATH_MAX];
 
 	/* the abstract function needs to be first since it clears all state */
 	abstract_cpu::measurement_start();
@@ -171,7 +175,7 @@ void nhm_core::measurement_start(void)
 	}
 
 
-	sprintf(filename, "/sys/devices/system/cpu/cpu%i/cpufreq/stats/time_in_state", first_cpu);
+	snprintf(filename, PATH_MAX, "/sys/devices/system/cpu/cpu%i/cpufreq/stats/time_in_state", first_cpu);
 
 	file.open(filename, ios::in);
 
@@ -290,6 +294,7 @@ nhm_package::nhm_package(int model)
 	has_c8c9c10_res = 0;
 	has_c2c6_res = 0;
 	has_c7_res = 0;
+	has_c6c_res = 0;
 
 	switch(model) {
 		case 0x2A:	/* SNB */
@@ -298,28 +303,41 @@ nhm_package::nhm_package(int model)
 		case 0x3C:
 		case 0x3E:      /* IVB Xeon */
 		case 0x45:	/* HSW-ULT */
+		case 0x4E:	/* SKY */
+		case 0x5E:	/* SKY */
 		case 0x3D:	/* Intel Next Generation */
 			has_c2c6_res=1;
 			has_c7_res = 1;
 	}
 
-	/* BYT-M doesn't have C3 or C7 */
-	/* BYT-T doesn't have C3 but it has C7 */
-	if (model == 0x37){
-		has_c2c6_res=1;
-		has_c3_res = 0;
-		this->byt_has_ahci();
-		if ((this->get_byt_ahci_support()) == 0)
-			has_c7_res = 1;/*BYT-T PC7 <- S0iX*/
-		else
-			has_c7_res = 0;
-	}
-	else
-		has_c3_res = 1;
+	has_c3_res = 1;
 
-	/* Haswell-ULT has C8/9/10*/
-	if (model == 0x45 || model ==0x3D)
-		has_c8c9c10_res = 1;
+	switch(model) {
+		/* BYT-M doesn't have C3 or C7 */
+		/* BYT-T doesn't have C3 but it has C7 */
+		case 0x37:
+			has_c2c6_res=1;
+			this->byt_has_ahci();
+			if ((this->get_byt_ahci_support()) == 0)
+				has_c7_res = 1;/*BYT-T PC7 <- S0iX*/
+			else
+				has_c7_res = 0;
+			break;
+		case 0x4C: /* BSW doesn't have C3 */
+			has_c3_res = 0;
+			has_c6c_res = 1; /* BSW only exposes package C6 */
+			break;
+	}
+
+	/*Has C8/9/10*/
+	switch(model) {
+		case 0x45: /*HSW*/
+		case 0x3D:
+		case 0x4E:
+		case 0x5E:
+			has_c8c9c10_res = 1;
+			break;
+	}
 }
 
 char * nhm_package::fill_pstate_line(int line_nr, char *buffer)
@@ -360,7 +378,15 @@ void nhm_package::measurement_start(void)
 
 	if (this->has_c3_res)
 		c3_before    = get_msr(number, MSR_PKG_C3_RESIDENCY);
-	c6_before    = get_msr(number, MSR_PKG_C6_RESIDENCY);
+
+	/*
+	 * Hack for Braswell where C7 MSR is actually BSW C6
+	 */
+	if (this->has_c6c_res)
+		c6_before    = get_msr(number, MSR_PKG_C7_RESIDENCY);
+	else
+		c6_before    = get_msr(number, MSR_PKG_C6_RESIDENCY);
+
 	if (this->has_c7_res)
 		c7_before    = get_msr(number, MSR_PKG_C7_RESIDENCY);
 	if (this->has_c8c9c10_res) {
@@ -401,7 +427,12 @@ void nhm_package::measurement_end(void)
 
 	if (this->has_c3_res)
 		c3_after    = get_msr(number, MSR_PKG_C3_RESIDENCY);
-	c6_after    = get_msr(number, MSR_PKG_C6_RESIDENCY);
+
+	if (this->has_c6c_res)
+		c6_after    = get_msr(number, MSR_PKG_C7_RESIDENCY);
+	else
+		c6_after    = get_msr(number, MSR_PKG_C6_RESIDENCY);
+
 	if (this->has_c7_res)
 		c7_after    = get_msr(number, MSR_PKG_C7_RESIDENCY);
 	if (has_c8c9c10_res) {
@@ -474,7 +505,7 @@ void nhm_package::measurement_end(void)
 void nhm_cpu::measurement_start(void)
 {
 	ifstream file;
-	char filename[4096];
+	char filename[PATH_MAX];
 
 	cpu_linux::measurement_start();
 
@@ -486,7 +517,7 @@ void nhm_cpu::measurement_start(void)
 
 	insert_cstate("active", _("C0 active"), 0, aperf_before, 1);
 
-	sprintf(filename, "/sys/devices/system/cpu/cpu%i/cpufreq/stats/time_in_state", first_cpu);
+	snprintf(filename, PATH_MAX, "/sys/devices/system/cpu/cpu%i/cpufreq/stats/time_in_state", first_cpu);
 
 	file.open(filename, ios::in);
 

@@ -38,6 +38,7 @@
 #include <unistd.h>
 #include <locale.h>
 #include <sys/resource.h>
+#include <limits.h>
 
 #include "cpu/cpu.h"
 #include "process/process.h"
@@ -97,7 +98,7 @@ static const struct option long_options[] =
 
 static void print_version()
 {
-	printf(_("PowerTOP version" POWERTOP_VERSION ", compiled on " __DATE__ "\n"));
+	printf(_("PowerTOP version " POWERTOP_VERSION ", compiled on " __DATE__ "\n"));
 }
 
 static bool set_refresh_timeout()
@@ -388,8 +389,8 @@ int main(int argc, char **argv)
 {
 	int option_index;
 	int c;
-	char filename[4096];
-	char workload[4096] = {0,};
+	char filename[PATH_MAX];
+	char workload[PATH_MAX] = {0};
 	int  iterations = 1, auto_tune = 0;
 
 	set_new_handler(out_of_memory);
@@ -418,7 +419,12 @@ int main(int argc, char **argv)
 			break;
 		case 'C':		/* csv report */
 			reporttype = REPORT_CSV;
-			sprintf(filename, "%s", optarg ? optarg : "powertop.csv");
+			snprintf(filename, PATH_MAX, "%s", optarg ? optarg : "powertop.csv");
+			if (!strlen(filename))
+			{
+				fprintf(stderr, _("Invalid CSV filename\n"));
+				exit(1);
+			}
 			break;
 		case OPT_DEBUG:
 			/* implemented using getopt_long(3) flag */
@@ -429,20 +435,25 @@ int main(int argc, char **argv)
 			break;
 		case 'r':		/* html report */
 			reporttype = REPORT_HTML;
-			sprintf(filename, "%s", optarg ? optarg : "powertop.html");
+			snprintf(filename, PATH_MAX, "%s", optarg ? optarg : "powertop.html");
+			if (!strlen(filename))
+			{
+				fprintf(stderr, _("Invalid HTML filename\n"));
+				exit(1);
+			}
 			break;
 		case 'i':
 			iterations = (optarg ? atoi(optarg) : 1);
 			break;
 		case 'q':
 			if (freopen("/dev/null", "a", stderr))
-				fprintf(stderr, _("Quite mode failed!\n"));
+				fprintf(stderr, _("Quiet mode failed!\n"));
 			break;
 		case 't':
 			time_out = (optarg ? atoi(optarg) : 20);
 			break;
 		case 'w':		/* measure workload */
-			sprintf(workload, "%s", optarg ? optarg : '\0');
+			snprintf(workload, PATH_MAX, "%s", optarg ? optarg : "");
 			break;
 		case 'V':
 			print_version();
@@ -500,7 +511,7 @@ int main(int argc, char **argv)
 	}
 	if (!auto_tune)
 		endwin();
-	printf("%s\n", _("Leaving PowerTOP"));
+	fprintf(stderr, "%s\n", _("Leaving PowerTOP"));
 
 	end_process_data();
 	clear_process_data();

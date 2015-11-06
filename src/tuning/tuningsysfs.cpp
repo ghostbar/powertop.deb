@@ -37,6 +37,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <dirent.h>
+#include <limits.h>
 
 
 #include "../lib.h"
@@ -46,8 +47,8 @@ sysfs_tunable::sysfs_tunable(const char *str, const char *_sysfs_path, const cha
 	strcpy(sysfs_path, _sysfs_path);
 	strcpy(target_value, _target_content);
 	bad_value[0] = 0;
-	sprintf(toggle_good, "echo '%s' > '%s';", target_value, sysfs_path);
-	sprintf(toggle_bad, "echo '%s' > '%s';", bad_value, sysfs_path);
+	snprintf(toggle_good, 4096, "echo '%s' > '%s';", target_value, sysfs_path);
+	snprintf(toggle_bad, 4096, "echo '%s' > '%s';", bad_value, sysfs_path);
 }
 
 int sysfs_tunable::good_bad(void)
@@ -115,11 +116,11 @@ void add_sysfs_tunable(const char *str, const char *_sysfs_path, const char *_ta
 
 static void add_sata_tunables_callback(const char *d_name)
 {
-	char filename[4096];
+	char filename[PATH_MAX];
 	char msg[4096];
 
-	sprintf(filename, "/sys/class/scsi_host/%s/link_power_management_policy", d_name);
-	sprintf(msg, _("Enable SATA link power management for %s"), d_name);
+	snprintf(filename, PATH_MAX, "/sys/class/scsi_host/%s/link_power_management_policy", d_name);
+	snprintf(msg, 4096, _("Enable SATA link power management for %s"), d_name);
 	add_sysfs_tunable(msg, filename,"min_power");
 }
 

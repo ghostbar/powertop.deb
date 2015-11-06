@@ -119,6 +119,8 @@ powertop_SOURCES = \
 	tuning/tuningsysfs.h \
 	tuning/tuningusb.cpp \
 	tuning/tuningusb.h \
+	tuning/tuningi2c.cpp \
+	tuning/tuningi2c.h \
 	tuning/wifi.cpp \
 	tuning/wifi.h
 
@@ -136,7 +138,6 @@ powertop_CXXFLAGS = \
 
 powertop_CPPFLAGS = \
 	-DLOCALEDIR=\"$(localedir)\" \
-	-D_FORTIFY_SOURCE=2 \
 	$(GLIB2_CFLAGS) \
 	$(LIBNL_CFLAGS) \
 	$(LIBZ_CFLAGS) \
