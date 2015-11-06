@@ -123,7 +123,7 @@ void devfreq::parse_devfreq_trans_stat(char *dname)
 	ifstream file;
 	char filename[256];
 
-	sprintf(filename, "/sys/class/devfreq/%s/trans_stat", dir_name);
+	snprintf(filename, 256, "/sys/class/devfreq/%s/trans_stat", dir_name);
 	file.open(filename);
 
 	if (!file)
@@ -247,6 +247,7 @@ void create_all_devfreq_devices(void)
 		fprintf(stderr, "Devfreq not enabled\n");
 		is_enabled = false;
 		closedir(dir);
+		dir = NULL;
 		return;
 	}
 
@@ -327,6 +328,8 @@ void clear_all_devfreq()
 	}
 	all_devfreq.clear();
 	/* close /sys/class/devfreq */
-	if (dir != NULL)
+	if (dir != NULL) {
 		closedir(dir);
+		dir = NULL;
+	}
 }

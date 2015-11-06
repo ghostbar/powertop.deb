@@ -1,5 +1,5 @@
 /*
- * Copyright 2010, Intel Corporation
+ * Copyright 2015, Intel Corporation
  *
  * This file is part of PowerTOP
  *
@@ -12,18 +12,13 @@
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
  * for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program in a file named COPYING; if not, write to the
- * Free Software Foundation, Inc,
- * 51 Franklin Street, Fifth Floor,
- * Boston, MA 02110-1301 USA
- * or just google for it.
- *
  * Authors:
  *	Arjan van de Ven <arjan@linux.intel.com>
+ *	Daniel Leung <daniel.leung@linux.intel.com>
  */
-#ifndef _INCLUDE_GUARD_USB_TUNE_H
-#define _INCLUDE_GUARD_USB_TUNE_H
+
+#ifndef _INCLUDE_GUARD_I2C_TUNE_H
+#define _INCLUDE_GUARD_I2C_TUNE_H
 
 #include <vector>
 #include <limits.h>
@@ -32,10 +27,10 @@
 
 using namespace std;
 
-class usb_tunable : public tunable {
-	char usb_path[PATH_MAX];
+class i2c_tunable : public tunable {
+	char i2c_path[PATH_MAX];
 public:
-	usb_tunable(const char *usb_path, const char *path);
+	i2c_tunable(const char *path, const char *name, bool is_adapter);
 
 	virtual int good_bad(void);
 
@@ -45,7 +40,7 @@ public:
 
 };
 
-extern void add_usb_tunables(void);
+extern void add_i2c_tunables(void);
 
 
 #endif

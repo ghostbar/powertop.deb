@@ -35,6 +35,7 @@
 #include <string.h>
 #include <malloc.h>
 #include <unistd.h>
+#include <limits.h>
 #include "report-data-html.h"
 
 using namespace std;
@@ -101,6 +102,8 @@ static string read_os_release(const string &filename)
 static void system_info(void)
 {
 	string str;
+	char version_date[64];
+	time_t now = time(NULL);
 
 	/* div attr css_class and css_id */
 	tag_attr div_attr;
@@ -117,7 +120,8 @@ static void system_info(void)
 	/* Set array of data in row Major order */
 	string *system_data = new string[sys_table.rows * sys_table.cols];
 	system_data[0]=__("PowerTOP Version");
-	system_data[1]=POWERTOP_VERSION;
+	snprintf(version_date, sizeof(version_date), "%s ran at %s", POWERTOP_VERSION, ctime(&now));
+	system_data[1]=version_date;
 
 	str = read_sysfs_string("/proc/version");
 	size_t  found = str.find(" ");
@@ -156,8 +160,8 @@ static void system_info(void)
 	report.add_div(&div_attr);
 	report.add_title(&title_attr, __("System Information"));
 	report.add_table(system_data, &sys_table);
-	report.end_div();
 	report.end_header();
+	report.end_div();
 	report.add_navigation();
 	delete [] system_data;
 }
@@ -165,28 +169,27 @@ static void system_info(void)
 void init_report_output(char *filename_str, int iterations)
 {
 	size_t period;
-	char file_prefix[4096];
-	char file_postfix[8];
+	string filename;
 	time_t stamp;
 	char datestr[200];
 
-	string mystring = string(filename_str);
-	sprintf(file_postfix, "%s",
-		(reporttype == REPORT_HTML ? "html" : "csv"));
-	period=mystring.find_last_of(".");
-	sprintf(file_prefix, "%s",mystring.substr(0,period).c_str());
-	memset(&datestr, 0, 200);
-	memset(&stamp, 0, sizeof(time_t));
-	stamp=time(NULL);
-	strftime(datestr, sizeof(datestr), "%Y%m%d-%H%M%S", localtime(&stamp));
-
-	if (iterations != 1)
-		sprintf(reportout.filename, "%s-%s.%s",
-			file_prefix, datestr,file_postfix);
+	if (iterations == 1)
+		snprintf(reportout.filename, PATH_MAX, "%s", filename_str);
 	else
-		sprintf(reportout.filename, "%s.%s",
-			file_prefix, file_postfix);
-
+	{
+		filename = string(filename_str);
+		period = filename.find_last_of(".");
+		if (period > filename.length())
+			period = filename.length();
+		memset(&datestr, 0, 200);
+		memset(&stamp, 0, sizeof(time_t));
+		stamp = time(NULL);
+		strftime(datestr, sizeof(datestr), "%Y%m%d-%H%M%S", localtime(&stamp));
+		snprintf(reportout.filename, PATH_MAX, "%s-%s%s",
+			filename.substr(0, period).c_str(), datestr,
+			filename.substr(period).c_str());
+	}
+	
 	reportout.report_file = fopen(reportout.filename, "wm");
 	if (!reportout.report_file) {
 		fprintf(stderr, _("Cannot open output file %s (%s)\n"),
