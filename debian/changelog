@@ -1,3 +1,9 @@
+powertop (2.8-1) unstable; urgency=medium
+
+  * new upstream release (Closes: #801873)
+
+ -- Jose Luis Rivas <ghostbar@debian.org>  Fri, 06 Nov 2015 12:38:09 -0500
+
 powertop (2.7-1) unstable; urgency=medium
 
   * New upstream version to unstable. (Closes: #795297)
