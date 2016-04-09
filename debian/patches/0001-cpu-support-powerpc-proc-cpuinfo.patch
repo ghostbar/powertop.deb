@@ -1,0 +1,49 @@
+>From 9ac909bba40cda08ce2c68fed76d206d9a2d6387 Mon Sep 17 00:00:00 2001
+From: Stewart Smith <stewart@linux.vnet.ibm.com>
+Date: Fri, 27 Nov 2015 11:07:28 +1100
+Subject: [PATCH 1/2] cpu: support powerpc /proc/cpuinfo
+
+Clean up duplicate code added for ARM and add support for what
+seems to be a good deliminator on ppc64.
+
+This patch makes powertop pick up CPUs on powernv platform.
+
+Signed-off-by: Stewart Smith <stewart@linux.vnet.ibm.com>
+---
+ src/cpu/cpu.cpp | 20 +++++++-------------
+ 1 file changed, 7 insertions(+), 13 deletions(-)
+
+diff --git a/src/cpu/cpu.cpp b/src/cpu/cpu.cpp
+index 9ca320f..64e1d3d 100644
+--- a/src/cpu/cpu.cpp
++++ b/src/cpu/cpu.cpp
+@@ -285,19 +285,13 @@ void enumerate_cpus(void)
+ 				model = strtoull(c, NULL, 10);
+ 			}
+ 		}
+-		if (strncasecmp(line, "bogomips\t", 9) == 0) {
+-			if (number == -1) {
+-				/* Not all /proc/cpuinfo include "processor\t". */
+-				number = 0;
+-			}
+-			if (number >= 0) {
+-				handle_one_cpu(number, vendor, family, model);
+-				set_max_cpu(number);
+-				number = -2;
+-			}
+-		}
+-		/* bogomips is removed in ARM, using CPU revision to enumerate */
+-		if (strncasecmp(line, "CPU revision\t", 13) == 0) {
++		/* on x86 and others 'bogomips' is last
++		 * on ARM it *can* be bogomips, or 'CPU revision'
++		 * on POWER, it's revision
++		 */
++		if (strncasecmp(line, "bogomips\t", 9) == 0
++		    || strncasecmp(line, "CPU revision\t", 13) == 0
++		    || strncmp(line, "revision", 7) == 0) {
+ 			if (number == -1) {
+ 				/* Not all /proc/cpuinfo include "processor\t". */
+ 				number = 0;
+-- 
+2.1.0
+

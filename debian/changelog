@@ -1,3 +1,9 @@
+powertop (2.8-2) UNRELEASED; urgency=medium
+
+  * Add patches for POWER support (Closes: #463034, 807610)
+
+ -- Julian Wollrath <jwollrath@web.de>  Sat, 09 Apr 2016 18:20:04 +0200
+
 powertop (2.8-1) unstable; urgency=medium
 
   * new upstream release (Closes: #801873)
