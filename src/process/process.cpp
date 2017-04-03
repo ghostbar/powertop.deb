@@ -33,6 +33,7 @@
 
 #include <iostream>
 #include <fstream>
+#include "../lib.h"
 
 
 vector <class process *> all_processes;
@@ -88,8 +89,9 @@ process::process(const char *_comm, int _pid, int _tid) : power_consumer()
 {
 	char line[4097];
 	ifstream file;
+	ssize_t pos;
 
-	strcpy(comm, _comm);
+	pt_strcpy(comm, _comm);
 	pid = _pid;
 	is_idle = 0;
 	running = 0;
@@ -120,7 +122,15 @@ process::process(const char *_comm, int _pid, int _tid) : power_consumer()
 	if (strncmp(_comm, "kondemand/", 10) == 0)
 		is_idle = 1;
 
-	strcpy(desc, comm);
+	pos = snprintf(desc, sizeof(desc), "[PID %d] ", pid);
+
+	if (pos < 0)
+		pos = 0;
+	if ((size_t)pos > sizeof(desc))
+		return;
+
+	strncpy(desc + pos, comm, sizeof(desc) - pos - 1);
+	desc[sizeof(desc) - 1] = '\0';
 
 	sprintf(line, "/proc/%i/cmdline", _pid);
 	file.open(line, ios::binary);
@@ -130,11 +140,11 @@ process::process(const char *_comm, int _pid, int _tid) : power_consumer()
 		file.close();
 		if (strlen(line) < 1) {
 			is_kernel = 1;
-			sprintf(desc, "[%s]", comm);
+			snprintf(desc + pos, sizeof(desc) - pos, "[%s]", comm);
 		} else {
-			int sz = sizeof(desc) - 1;
+			int sz = sizeof(desc) - pos - 1;
 			cmdline_to_string(line);
-			strncpy(desc, line, sz);
+			strncpy(desc + pos, line, sz);
 			desc[sz] = 0x00;
 		}
 	}
@@ -229,7 +239,8 @@ void all_processes_to_all_power(void)
 {
 	unsigned int i;
 	for (i = 0; i < all_processes.size() ; i++)
-		if (all_processes[i]->accumulated_runtime)
+		if (all_processes[i]->accumulated_runtime ||
+		    all_processes[i]->power_charge)
 			all_power.push_back(all_processes[i]);
 }
 

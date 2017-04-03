@@ -61,7 +61,7 @@ static bool timer_is_deferred(const char *handler)
 
 timer::timer(unsigned long address) : power_consumer()
 {
-	strncpy(handler, kernel_function(address), 31);
+	pt_strcpy(handler, kernel_function(address));
 	raw_count = 0;
 	deferred = timer_is_deferred(handler);
 }
@@ -125,7 +125,7 @@ const char * timer::description(void)
 	if (child_runtime > accumulated_runtime)
 		child_runtime = 0;
 
-	sprintf(desc, "%s", handler);
+	snprintf(desc, sizeof(desc), "%s", handler);
 	return desc;
 }
 

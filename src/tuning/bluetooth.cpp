@@ -46,8 +46,8 @@
 bt_tunable::bt_tunable(void) : tunable("", 1.0, _("Good"), _("Bad"), _("Unknown"))
 {
 	sprintf(desc, _("Bluetooth device interface status"));
-	strcpy(toggle_bad, "/usr/sbin/hciconfig hci0 up &> /dev/null &");
-	strcpy(toggle_good, "/usr/sbin/hciconfig hci0 down &> /dev/null");
+	pt_strcpy(toggle_bad, "/usr/sbin/hciconfig hci0 up &> /dev/null &");
+	pt_strcpy(toggle_good, "/usr/sbin/hciconfig hci0 down &> /dev/null");
 }
 
 
@@ -176,11 +176,11 @@ void bt_tunable::toggle(void)
 	good = good_bad();
 
 	if (good == TUNE_GOOD) {
-		if(!system("/usr/sbin/hciconfig hci0 up &> /dev/null &"))
+		if(system("/usr/sbin/hciconfig hci0 up &> /dev/null &"))
 			printf("System is not available\n");
 		return;
 	}
-	if(!system("/usr/sbin/hciconfig hci0 down &> /dev/null"))
+	if(system("/usr/sbin/hciconfig hci0 down &> /dev/null"))
 		printf("System is not available\n");
 }
 

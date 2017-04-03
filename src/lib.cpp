@@ -58,6 +58,7 @@ extern "C" {
 #include <math.h>
 #include <ncurses.h>
 #include <fcntl.h>
+#include <glob.h>
 
 static int kallsyms_read = 0;
 
@@ -240,7 +241,7 @@ string read_sysfs_string(const char *format, const char *param)
 	char filename[PATH_MAX];
 
 
-	snprintf(filename, PATH_MAX, format, param);
+	snprintf(filename, sizeof(filename), format, param);
 
 	file.open(filename, ios::in);
 	if (!file)
@@ -456,6 +457,32 @@ void process_directory(const char *d_name, callback fn)
 	closedir(dir);
 }
 
+void process_glob(const char *d_glob, callback fn)
+{
+	glob_t g;
+	size_t c;
+
+	switch (glob(d_glob, GLOB_ERR | GLOB_MARK | GLOB_NOSORT, NULL, &g)) {
+	case GLOB_NOSPACE:
+		fprintf(stderr,_("glob returned GLOB_NOSPACE\n"));
+		globfree(&g);
+		return;
+	case GLOB_ABORTED:
+		fprintf(stderr,_("glob returned GLOB_ABORTED\n"));
+		globfree(&g);
+		return;
+	case GLOB_NOMATCH:
+		fprintf(stderr,_("glob returned GLOB_NOMATCH\n"));
+		globfree(&g);
+		return;
+	}
+
+	for (c=0; c < g.gl_pathc; c++) {
+		fn(g.gl_pathv[c]);
+	}
+	globfree(&g);
+}
+
 int get_user_input(char *buf, unsigned sz)
 {
 	fflush(stdout);
@@ -470,15 +497,16 @@ int get_user_input(char *buf, unsigned sz)
 
 int read_msr(int cpu, uint64_t offset, uint64_t *value)
 {
+#if defined(__i386__) || defined(__x86_64__)
 	ssize_t retval;
 	uint64_t msr;
 	int fd;
 	char msr_path[256];
 
-	snprintf(msr_path, 256, "/dev/cpu/%d/msr", cpu);
+	snprintf(msr_path, sizeof(msr_path), "/dev/cpu/%d/msr", cpu);
 
 	if (access(msr_path, R_OK) != 0){
-		snprintf(msr_path, 256, "/dev/msr%d", cpu);
+		snprintf(msr_path, sizeof(msr_path), "/dev/msr%d", cpu);
 
 		if (access(msr_path, R_OK) != 0){
 			fprintf(stderr,
@@ -499,18 +527,22 @@ int read_msr(int cpu, uint64_t offset, uint64_t *value)
 	*value = msr;
 
 	return retval;
+#else
+	return -1;
+#endif
 }
 
 int write_msr(int cpu, uint64_t offset, uint64_t value)
 {
+#if defined(__i386__) || defined(__x86_64__)
 	ssize_t retval;
 	int fd;
 	char msr_path[256];
 
-	snprintf(msr_path, 256, "/dev/cpu/%d/msr", cpu);
+	snprintf(msr_path, sizeof(msr_path), "/dev/cpu/%d/msr", cpu);
 
 	if (access(msr_path, R_OK) != 0){
-		snprintf(msr_path, 256, "/dev/msr%d", cpu);
+		snprintf(msr_path, sizeof(msr_path), "/dev/msr%d", cpu);
 
 		if (access(msr_path, R_OK) != 0){
 			fprintf(stderr,
@@ -530,6 +562,9 @@ int write_msr(int cpu, uint64_t offset, uint64_t value)
 	}
 
 	return retval;
+#else
+	return -1;
+#endif
 }
 
 #define UI_NOTIFY_BUFF_SZ 2048
