@@ -1,8 +1,15 @@
-powertop (2.8-2) UNRELEASED; urgency=medium
+powertop (2.9-1~exp1) experimental; urgency=medium
 
-  * Add patches for POWER support (Closes: #463034, #807610)
+  * New upstream release (Closes: #732458, #793275, #857941):
+    - Support POWER (Closes: #463034, #807610).
+    - Update debian/copyright.
+    - USB devices, that cannot be autosuspended are not shown anymore
+      (Closes: #664455).
+  * Bump standards version to 3.9.8 (no changes needed).
+  * Drop manually generated debug package.
+  * Update watchfile to look at GitHub.
 
- -- Julian Wollrath <jwollrath@web.de>  Sat, 09 Apr 2016 18:20:04 +0200
+ -- Julian Wollrath <jwollrath@web.de>  Mon, 03 Apr 2017 19:44:10 +0200
 
 powertop (2.8-1) unstable; urgency=medium
 
