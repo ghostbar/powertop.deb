@@ -12,7 +12,7 @@ Build-Depends:
  libnl-genl-3-dev,
  libpci-dev,
  pkg-config
-Standards-Version: 3.9.6
+Standards-Version: 3.9.8
 Vcs-git: git://github.com/ghostbar/powertop.deb.git
 Vcs-browser: https://github.com/ghostbar/powertop.deb
 Homepage: https://01.org/powertop/
