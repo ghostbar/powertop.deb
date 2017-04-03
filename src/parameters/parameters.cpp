@@ -327,7 +327,7 @@ void store_results(double duration)
 {
 	if (duration < 5)
 		return;
-	global_joules_consumed();
+	global_power();
 	if (all_results.power > 0.01) {
 		unsigned int overflow_index;
 		overflow_index = 50 + (rand() % MAX_KEEP);
@@ -454,9 +454,9 @@ char* get_param_directory(const char *filename)
 	static char tempfilename[PATH_MAX];
 
 	if (access("/var/cache/powertop", W_OK ) == 0)
-		snprintf(tempfilename, PATH_MAX, "/var/cache/powertop/%s", filename);
+		snprintf(tempfilename, sizeof(tempfilename), "/var/cache/powertop/%s", filename);
 	if (access("/data/local/powertop", W_OK ) == 0)
-		snprintf(tempfilename, PATH_MAX, "/data/local/powertop/%s", filename);
+		snprintf(tempfilename, sizeof(tempfilename), "/data/local/powertop/%s", filename);
 
 	return tempfilename;
 };

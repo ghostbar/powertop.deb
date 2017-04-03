@@ -2,7 +2,8 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.68])
-AC_INIT([powertop], [2.8], [powertop@lists.01.org], [], [https://01.org/powertop])
+AC_INIT([powertop], m4_esyscmd_s([cat version-long]),
+	[powertop@lists.01.org], [], [https://01.org/powertop])
 AM_INIT_AUTOMAKE([
 	-Wall
 	1.12.2
@@ -11,6 +12,7 @@ AM_INIT_AUTOMAKE([
 AC_LANG([C++])
 AC_CONFIG_FILES([
 	Makefile
+	Doxyfile
 	src/Makefile
 	traceevent/Makefile
 	po/Makefile.in
@@ -24,7 +26,7 @@ GETTEXT_PACKAGE=powertop
 AC_SUBST([GETTEXT_PACKAGE])
 AM_SILENT_RULES([yes])
 AM_GNU_GETTEXT([external])
-AM_GNU_GETTEXT_VERSION([0.18])
+AM_GNU_GETTEXT_VERSION([0.18.2])
 
 m4_ifdef([AM_PROG_AR], [AM_PROG_AR])
 # Checks for programs.
@@ -106,6 +108,8 @@ AC_CHECK_FUNCS([ \
 	strtoull \
 ])
 
+AC_SEARCH_LIBS([clock_gettime], [rt])
+
 PKG_CHECK_MODULES([NCURSES], [ncursesw ncurses], [LIBS="$LIBS $ncurses_LIBS"], [
 	AC_SEARCH_LIBS([delwin], [ncursesw ncurses], [], [
 		AC_MSG_ERROR([ncurses is required but was not found])
@@ -147,5 +151,7 @@ AC_SEARCH_LIBS([inet_aton], [resolv], [], [
 	AC_MSG_ERROR([libresolv is required but was not found])
 ], [])
 
+AC_DEFINE([PACKAGE_SHORT_VERSION], m4_esyscmd_s([cat version-short]),
+	[Short package version])
 
 AC_OUTPUT

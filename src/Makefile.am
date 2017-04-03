@@ -67,6 +67,8 @@ powertop_SOURCES = \
 	measurement/measurement.h \
 	measurement/sysfs.cpp \
 	measurement/sysfs.h \
+	measurement/opal-sensors.cpp \
+	measurement/opal-sensors.h \
 	parameters/learn.cpp \
 	parameters/parameters.cpp \
 	parameters/parameters.h \
@@ -133,7 +135,8 @@ powertop_CXXFLAGS = \
 	$(GLIB2_CFLAGS) \
 	$(LIBNL_CFLAGS) \
 	$(NCURSES_CFLAGS) \
-	$(PCIUTILS_CFLAGS)
+	$(PCIUTILS_CFLAGS) \
+	$(PTHREAD_CFLAGS)
 
 
 powertop_CPPFLAGS = \
@@ -142,7 +145,8 @@ powertop_CPPFLAGS = \
 	$(LIBNL_CFLAGS) \
 	$(LIBZ_CFLAGS) \
 	$(NCURSES_CFLAGS) \
-	$(PCIUTILS_CFLAGS)
+	$(PCIUTILS_CFLAGS) \
+	$(PTHREAD_CFLAGS)
 
 powertop_LDADD = \
 	../traceevent/libtraceevnet.la
