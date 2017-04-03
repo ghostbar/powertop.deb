@@ -27,6 +27,9 @@ Copyright: © 2005 Patrick Mochel
            © 2006, 2011 Intel Corporation
 License: GPL-2
 
+Files: src/measurement/opal-sensors.Ü
+Copyright: © 2015 IBM Corp.
+
 Files: src/measurement/sysfs.*
 Copyright: © Anssi Hannula
 License: GPL-2
@@ -64,12 +67,16 @@ Copyright: © 2009, 2010 Red Hat Inc, Steven Rostedt <srostedt@redhat.com>
            © 2009 Frederic Weisbecker
 License: LGPL-2.1
 
-Files: traceevent/event-parse.h
+Files: traceevent/event-parse.h traceevent/kbuffer-parse.c
 Copyright: © 2009, 2010 Red Hat Inc, Steven Rostedt <srostedt@redhat.com>
 License: LGPL-2.1
 
 Files: traceevent/event-utils.h traceevent/parse-filter.c
 Copyright: © 2010 Red Hat Inc, Steven Rostedt <srostedt@redhat.com>
+License: LGPL-2.1
+
+Files: traceevent/kbuffer.h
+Copyright: © 2012 Red Hat Inc, Steven Rostedt <srostedt@redhat.com>
 License: LGPL-2.1
 
 Files: traceevent/trace-seq.c
@@ -85,7 +92,7 @@ Copyright: © 2007 Petter Reinholdtsen <pere@hungry.com>
            © 2012 Michael Biebl <biebl@debian.org>
            © 2013 Jonathan Wiltshire <jmw@debian.org>
            © 2007-2013 Jose Luis Rivas <ghostbar@debian.org>
-           © 2012-2014 Julian Wollrath <jwollrath@web.de>
+           © 2012-2017 Julian Wollrath <jwollrath@web.de>
 License: GPL-2
 
 License: ISC
