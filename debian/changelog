@@ -8,8 +8,9 @@ powertop (2.9-1~exp1) experimental; urgency=medium
   * Bump standards version to 3.9.8 (no changes needed).
   * Drop manually generated debug package.
   * Update watchfile to look at GitHub.
+  * Remove myself from uploaders.
 
- -- Julian Wollrath <jwollrath@web.de>  Mon, 03 Apr 2017 19:44:10 +0200
+ -- Julian Wollrath <jwollrath@web.de>  Tue, 10 Oct 2017 11:44:31 +0200
 
 powertop (2.8-1) unstable; urgency=medium
 
